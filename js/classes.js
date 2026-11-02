@@ -47,7 +47,7 @@ function classesScreen() {
       <span class="grow">
         <strong>${esc(c.name)}</strong>
         <span class="muted small">${esc(fmtSchedule(c))}</span>
-        ${c.instructor ? `<span class="muted small">${esc(c.instructor)}</span>` : ''}
+        <span class="muted small">${esc([programLabel(c.program) || 'No charge', c.instructor].filter(Boolean).join(' · '))}</span>
       </span>
       <span class="tag ${full ? 'full' : ''}">${spotsLabel(c, count)}</span>
     </a></li>`;
@@ -71,6 +71,8 @@ function classScreen(id) {
   <section class="hero">
     <h2>${esc(c.name)}</h2>
     <p class="muted">${esc(fmtSchedule(c))}</p>
+    <p>${c.program ? `Program: <strong>${esc(programLabel(c.program))}</strong>`
+      : '<span class="muted">No charge (not part of a paid program)</span>'}</p>
     ${c.instructor ? `<p>Instructor: <strong>${esc(c.instructor)}</strong></p>` : ''}
     ${c.active ? '' : '<span class="tag">Not running</span>'}
     <div class="actions">
@@ -177,7 +179,13 @@ function classFormScreen(id) {
   return `${topBar(id ? 'Edit class' : 'New class', back)}
   <form id="class-form" class="stack" data-id="${esc(id || '')}" novalidate>
     <div class="card stack">
-      <label>Class name *<input name="name" value="${esc(c.name)}" placeholder="e.g. Kids Class" autocomplete="off"></label>
+      <label>Class name *<input name="name" value="${esc(c.name)}" placeholder="e.g. Kids Kickboxing" autocomplete="off"></label>
+      <label><span>Program <span class="muted small">(sets what members pay)</span></span>
+        <select name="program">
+          ${PROGRAMS.map(([key, label]) => `<option value="${key}" ${c.program === key ? 'selected' : ''}>${label}</option>`).join('')}
+          <option value="" ${id && !c.program ? 'selected' : ''}>No charge (e.g. open mat)</option>
+        </select>
+      </label>
       <fieldset class="days">
         <legend>Days</legend>
         ${DAYS.map(([key, label]) => `
@@ -211,6 +219,7 @@ async function onSaveClass(form) {
   const capacity = form.capacity.value.trim();
   const fields = {
     name: form.querySelector('[name=name]').value.trim(),   // form.name is the form's own name
+    program: form.program.value || null,
     days: [...form.querySelectorAll('input[name=days]:checked')].map(i => i.value),
     start_time: form.start_time.value || null,
     end_time: form.end_time.value || null,

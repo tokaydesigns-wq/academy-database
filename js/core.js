@@ -84,3 +84,56 @@ function fmtSchedule(c) {
     : fmtTime(c.start_time);
   return [fmtDays(c.days), time].filter(Boolean).join(' · ') || 'No set time';
 }
+
+// ---------- Money and months ----------
+
+// Prices in cents, from the gym's price list (see CLAUDE.md).
+const PRICES = { kickboxing: 3999, premium: 5999, extraCourse: 1000, family: 15000 };
+
+// Programs a class can belong to. Muay Thai and Jiu Jitsu are "premium" and include Kickboxing.
+const PROGRAMS = [['kickboxing', 'Kickboxing'], ['muay_thai', 'Muay Thai'], ['jiu_jitsu', 'Jiu Jitsu']];
+const PREMIUM = ['muay_thai', 'jiu_jitsu'];
+
+function programLabel(key) {
+  const p = PROGRAMS.find(([k]) => k === key);
+  return p ? p[1] : '';
+}
+
+const PAY_METHODS = [['cash', 'Cash'], ['card', 'Card'], ['check', 'Check'], ['other', 'Other']];
+
+function methodLabel(key) {
+  const p = PAY_METHODS.find(([k]) => k === key);
+  return p ? p[1] : key;
+}
+
+// Money is kept in whole cents in the app to avoid rounding errors.
+function toCents(amount) {
+  return Math.round(Number(amount || 0) * 100);
+}
+
+function fmtMoney(cents) {
+  return (cents / 100).toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+}
+
+// Today as "2026-11-02", in local time (not UTC).
+function todayISO() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+
+// Months are "2026-11" strings.
+function thisMonth() {
+  return todayISO().slice(0, 7);
+}
+
+function shiftMonth(key, n) {
+  const [y, m] = key.split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// "2026-11" -> "November 2026"
+function fmtMonth(key) {
+  const [y, m] = key.split('-').map(Number);
+  return new Date(y, m - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' });
+}

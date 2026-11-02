@@ -21,6 +21,19 @@ The owner of this project isn't a developer. Write to them in plain language, sh
 - No build step and no frameworks unless there's a clear reason. Plain HTML, CSS and JavaScript.
 - Use made-up test members while building. No real member data in test files or screenshots.
 
+## Prices (from the gym's price list, 2026-11-02)
+
+No contracts and no auto-payments. Each class belongs to a program, and the app works out a
+member's monthly price from the programs of the classes they're in (`planFor()` in payments.js):
+
+- Kickboxing only: $39.99/month, unlimited.
+- Muay Thai or Jiu Jitsu: $59.99/month, and Kickboxing is included free.
+- +$10 for each extra course, e.g. Muay Thai + Jiu Jitsu = $69.99 (Kickboxing still included).
+- Family plan: $150/month and covers the whole household. One member pays, and the others are
+  "covered" by them.
+- Staff can set a custom price for special deals. Karate and Judo are no longer offered. Punch
+  cards exist, but the owner chose not to track them.
+
 ## Build order
 
 1. Staff login, and members (contact info, emergency contact)
@@ -32,9 +45,10 @@ The owner of this project isn't a developer. Write to them in plain language, sh
 
 `index.html` loads supabase-js from jsDelivr, then `config.js`, `js/core.js` (helpers, `esc()`),
 `js/data.js` (`DB`: demo storage or Supabase, same methods), `js/ui.js` (hash router, member
-screens, event handlers) and `js/classes.js` (class screens). Routes: `#/members`, `#/m/ID`,
-`#/new`, `#/edit/ID`, `#/join/ID`, `#/account`, `#/classes`, `#/c/ID`, `#/new-class`,
-`#/edit-class/ID`, `#/enroll/ID`. New screens register in `SCREENS`, forms in `FORMS`, and
+screens, event handlers), `js/classes.js` (class screens) and `js/payments.js` (prices, Payments
+tab, record payment). Routes: `#/members`, `#/m/ID`, `#/new`, `#/edit/ID`, `#/join/ID`,
+`#/account`, `#/classes`, `#/c/ID`, `#/new-class`, `#/edit-class/ID`, `#/enroll/ID`,
+`#/payments`, `#/pay/MEMBER_ID`. New screens register in `SCREENS`, forms in `FORMS`, and
 `data-act` clicks in `ACTIONS`.
 
 - **Demo mode** turns on when `config.js` is blank, or with `?demo` in the address. It uses
