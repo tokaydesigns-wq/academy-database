@@ -1,22 +1,30 @@
 // Every read and write goes through DB, so screens don't care whether we're in demo mode
 // (browser storage) or connected to Supabase.
 
+// Text fields on the member form (the enrollment form's fields).
 const MEMBER_FIELDS = [
-  'first_name', 'last_name', 'email', 'phone', 'date_of_birth', 'address',
-  'emergency_name', 'emergency_phone', 'emergency_relation', 'notes', 'active'
+  'first_name', 'last_name', 'email', 'phone', 'alt_phone', 'date_of_birth', 'sex',
+  'address', 'city', 'state', 'zip', 'medical',
+  'emergency_name', 'emergency_phone', 'emergency_alt_phone', 'emergency_relation', 'notes', 'active'
 ];
+
+// Waiver columns loaded up front. The text and signature images are only fetched when a
+// waiver is opened, since they're large.
+const WAIVER_LIST_COLUMNS =
+  'id,member_id,kind,version,signed_name,guardian_name,photo_path,signed_on,recorded_by,created_at';
 
 // ---------- Demo mode ----------
 
-// v2 added class programs, member plans and payments; older demo data is simply replaced.
-const DEMO_KEY = 'academy.demo.v2';
+// v3 added waivers and the enrollment form fields; older demo data is simply replaced.
+const DEMO_KEY = 'academy.demo.v3';
 
 // Made-up people for trying the app. Never put real member details here.
 function demoMembers() {
   const m = (first, last, phone, dob, extra = {}) => ({
     id: crypto.randomUUID(), first_name: first, last_name: last,
     email: `${first}.${last}@example.com`.toLowerCase(), phone, date_of_birth: dob,
-    address: '', emergency_name: '', emergency_phone: '', emergency_relation: '',
+    address: '', city: '', state: '', zip: '', alt_phone: '', sex: null, medical: '',
+    emergency_name: '', emergency_phone: '', emergency_alt_phone: '', emergency_relation: '',
     notes: '', active: true, plan: 'auto', custom_price: null, paid_by: null,
     created_at: new Date().toISOString(), ...extra
   });
@@ -25,8 +33,9 @@ function demoMembers() {
       { emergency_name: 'Sam Testerson', emergency_phone: '555-0102', emergency_relation: 'Partner' }),
     m('Bea', 'Sample', '555-0110', '2012-09-30',
       { emergency_name: 'Cora Sample', emergency_phone: '555-0111', emergency_relation: 'Mum',
-        notes: 'Mild asthma, carries an inhaler.' }),
-    m('Charlie', 'Demo', '555-0120', '1985-01-05', { address: '1 Example Street' }),
+        medical: 'Mild asthma, carries an inhaler.', sex: 'female' }),
+    m('Charlie', 'Demo', '555-0120', '1985-01-05',
+      { address: '1 Example Street', city: 'Exampleton', state: 'WI', zip: '00000', sex: 'male' }),
     m('Dana', 'Placeholder', '555-0130', '2001-07-21'),
     m('Eli', 'Fakename', '555-0140', '1978-11-02', { active: false, notes: 'Moved away.' }),
     m('Fran', 'Mockley', '555-0150', '2010-02-14',
@@ -65,7 +74,19 @@ function demoSeed() {
   });
   const payments = [pay(0, 5999, 'card'), pay(5, 15000, 'cash'), pay(0, 5999, 'card', shiftMonth(month, -1)),
     pay(3, 3000, 'cash')];
-  return { members, classes, enrollments, payments };
+  // Alex signed the current waiver, Fran's dad signed for her, and Dana signed an older
+  // version (so she's asked to sign again). Bea and Charlie have none yet.
+  const scribble = 'data:image/svg+xml,' + encodeURIComponent(
+    '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100"><path d="M10 70 C40 10 60 90 90 40 S140 80 170 30 S230 70 290 40" fill="none" stroke="#123" stroke-width="3"/></svg>');
+  const waiver = (mi, extra) => ({
+    id: crypto.randomUUID(), member_id: members[mi].id, kind: 'signed', version: WAIVER.version,
+    waiver_text: waiverText(), signed_name: fullName(members[mi]), signature: scribble,
+    guardian_name: '', guardian_signature: null, photo_path: null, signed_on: todayISO(),
+    recorded_by: 'demo@example.com', created_at: new Date().toISOString(), ...extra
+  });
+  const waivers = [waiver(0), waiver(5, { signature: null, guardian_name: 'Gus Mockley', guardian_signature: scribble }),
+    waiver(3, { version: '0', signed_on: '2025-01-15' })];
+  return { members, classes, enrollments, payments, waivers };
 }
 
 function demoLoad() {
@@ -151,6 +172,33 @@ const demoDB = {
   async deletePayment(id) {
     this.data.payments = this.data.payments.filter(p => p.id !== id);
     demoSave(this.data);
+  },
+  async listWaivers() {
+    const cols = WAIVER_LIST_COLUMNS.split(',');
+    return this.data.waivers.map(w => Object.fromEntries(cols.map(c => [c, w[c]])));
+  },
+  async getWaiver(id) {
+    const w = this.data.waivers.find(x => x.id === id);
+    return w ? { ...w } : null;
+  },
+  async addWaiver(fields) {
+    const row = { id: crypto.randomUUID(), recorded_by: 'demo@example.com',
+      created_at: new Date().toISOString(), ...fields };
+    this.data.waivers.push(row);
+    demoSave(this.data);
+    return { ...row };
+  },
+  // In demo mode the "path" is the photo itself, kept small to fit in browser storage.
+  async uploadWaiverPhoto(memberId, blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(new Error('Couldn’t read that photo.'));
+      reader.readAsDataURL(blob);
+    });
+  },
+  async waiverPhotoUrl(path) {
+    return path;
   },
   // Put the made-up data back, for testing.
   reset() {
@@ -244,6 +292,34 @@ function supabaseDB() {
     async deletePayment(id) {
       const { error } = await sb.from('payments').delete().eq('id', id);
       if (error) fail(error);
+    },
+    async listWaivers() {
+      const { data, error } = await sb.from('waivers').select(WAIVER_LIST_COLUMNS);
+      if (error) fail(error);
+      return data;
+    },
+    async getWaiver(id) {
+      const { data, error } = await sb.from('waivers').select('*').eq('id', id).maybeSingle();
+      if (error) fail(error);
+      return data;
+    },
+    async addWaiver(fields) {
+      const { data, error } = await sb.from('waivers').insert(fields).select(WAIVER_LIST_COLUMNS).single();
+      if (error) fail(error);
+      return data;
+    },
+    // Paper waiver photos go in the private "waivers" bucket, in a folder per member.
+    async uploadWaiverPhoto(memberId, blob) {
+      const path = `${memberId}/${crypto.randomUUID()}.jpg`;
+      const { error } = await sb.storage.from('waivers').upload(path, blob, { contentType: 'image/jpeg' });
+      if (error) fail(error);
+      return path;
+    },
+    // A private link to a photo that works for an hour.
+    async waiverPhotoUrl(path) {
+      const { data, error } = await sb.storage.from('waivers').createSignedUrl(path, 3600);
+      if (error) fail(error);
+      return data.signedUrl;
     }
   };
 }

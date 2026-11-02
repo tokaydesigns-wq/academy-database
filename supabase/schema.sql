@@ -173,3 +173,50 @@ revoke all on public.payments from anon;
 alter table public.members drop constraint if exists members_plan_check;
 alter table public.members add constraint members_plan_check
   check (plan in ('auto', 'kickboxing', 'muay_thai', 'jiu_jitsu', 'all', 'family', 'covered', 'custom'));
+
+-- Enrollment form fields (from "Academy Enrollment.pdf"), added 2026-11-02.
+alter table public.members add column if not exists sex text check (sex in ('male', 'female'));
+alter table public.members add column if not exists city text not null default '';
+alter table public.members add column if not exists state text not null default '';
+alter table public.members add column if not exists zip text not null default '';
+alter table public.members add column if not exists alt_phone text not null default '';
+alter table public.members add column if not exists emergency_alt_phone text not null default '';
+alter table public.members add column if not exists medical text not null default '';
+
+-- Waivers: one row each time someone signs on screen or a paper waiver is photographed.
+-- They're legal records, so staff can add them but not change or delete them.
+create table if not exists public.waivers (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.members(id) on delete cascade,
+  kind text not null check (kind in ('signed', 'paper')),
+  version text not null,                    -- WAIVER.version in js/waiver-text.js
+  waiver_text text not null default '',     -- the exact wording that was signed
+  signed_name text not null default '',
+  signature text,                           -- participant's signature, as a PNG image
+  guardian_name text not null default '',
+  guardian_signature text,                  -- parent/guardian's signature (under 18)
+  photo_path text,                          -- paper waiver photo in the "waivers" storage bucket
+  signed_on date not null default current_date,
+  recorded_by text not null default coalesce(auth.jwt() ->> 'email', ''),
+  created_at timestamptz not null default now()
+);
+
+alter table public.waivers enable row level security;
+drop policy if exists "staff read waivers" on public.waivers;
+drop policy if exists "staff add waivers" on public.waivers;
+create policy "staff read waivers" on public.waivers
+  for select to authenticated using (public.is_staff());
+create policy "staff add waivers" on public.waivers
+  for insert to authenticated with check (public.is_staff());
+revoke all on public.waivers from anon;
+
+-- Private storage for photos of paper waivers. Only staff can see or add them.
+insert into storage.buckets (id, name, public)
+  values ('waivers', 'waivers', false)
+  on conflict (id) do nothing;
+drop policy if exists "staff read waiver photos" on storage.objects;
+drop policy if exists "staff add waiver photos" on storage.objects;
+create policy "staff read waiver photos" on storage.objects
+  for select to authenticated using (bucket_id = 'waivers' and public.is_staff());
+create policy "staff add waiver photos" on storage.objects
+  for insert to authenticated with check (bucket_id = 'waivers' and public.is_staff());

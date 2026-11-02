@@ -374,3 +374,43 @@ li.row { padding: 0 4px 0 0; }
   border: 1px solid var(--warn-line);
   font-size: 14px;
 }
+
+/* Member page: medical conditions at the top */
+.card.medical { background: var(--warn-bg); border-color: var(--warn-line); margin-top: 12px; overflow-wrap: anywhere; }
+
+/* Member form: city, state, zip on one row */
+.city-row { display: grid; grid-template-columns: 2fr 1fr 1fr; gap: 12px; }
+@media (max-width: 360px) { .city-row { grid-template-columns: 1fr 1fr; } .city-row label:first-child { grid-column: 1 / -1; } }
+
+/* Waivers */
+.actions.start { justify-content: flex-start; margin-top: 10px; }
+.link-btn { border: 0; background: none; color: var(--accent); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; padding: 4px; }
+.pad-label { display: flex; justify-content: space-between; align-items: center; font-size: 14px; margin-bottom: 4px; }
+.sig-pad {
+  display: block;
+  width: 100%;
+  height: 150px;
+  background: #fff;                 /* always white, like paper, even in dark mode */
+  border: 2px dashed var(--line);
+  border-radius: 10px;
+  touch-action: none;               /* let fingers draw instead of scrolling the page */
+  cursor: crosshair;
+}
+.waiver-text { max-height: 50vh; overflow-y: auto; font-size: 14px; line-height: 1.5; }
+.waiver-text p { margin: 0 0 10px !important; }
+.waiver-gym { text-align: center; font-weight: 800; letter-spacing: .04em; }
+.waiver-title { text-align: center; margin: 0 0 10px; font-size: 16px; }
+.printable { max-height: none; }
+.sig-block { display: flex; flex-direction: column; gap: 4px; margin: 12px 0; }
+.sig-img { width: 100%; max-width: 360px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.photo-btn { position: relative; overflow: hidden; }
+.photo-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; min-height: 0; }
+.paper-preview { width: 100%; border-radius: 10px; border: 1px solid var(--line); }
+
+/* Printing a signed waiver: just the waiver, on white */
+@media print {
+  body { background: #fff; color: #000; }
+  .top, .tabs, .demo, .fab, #toast, .btn, .muted.small.center { display: none !important; }
+  .card { border: 0; box-shadow: none; padding: 0; background: #fff; }
+  .waiver-text { max-height: none; overflow: visible; font-size: 12pt; }
+}
