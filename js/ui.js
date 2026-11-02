@@ -371,6 +371,7 @@ function accountScreen() {
     <p>Signed in as <strong>${esc(state.user.email)}</strong></p>
     <button class="btn" data-act="sign-out">Sign out</button>
   </div>
+  ${backupCard()}
   ${DEMO ? `
   <h3 class="section">Demo</h3>
   <div class="card stack">

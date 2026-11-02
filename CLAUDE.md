@@ -45,8 +45,9 @@ member's monthly price from the programs of the classes they're in (`planFor()` 
 
 `index.html` loads supabase-js from jsDelivr, then `config.js`, `js/core.js` (helpers, `esc()`),
 `js/data.js` (`DB`: demo storage or Supabase, same methods), `js/ui.js` (hash router, member
-screens, event handlers), `js/classes.js` (class screens) and `js/payments.js` (prices, Payments
-tab, record payment). Routes: `#/members`, `#/m/ID`, `#/new`, `#/edit/ID`, `#/join/ID`,
+screens, event handlers), `js/classes.js` (class screens), `js/payments.js` (prices, Payments
+tab, record payment) and `js/backup.js` (CSV downloads on the account screen; Supabase's free
+plan has no restorable backups, so these are the gym's safety copy). Routes: `#/members`, `#/m/ID`, `#/new`, `#/edit/ID`, `#/join/ID`,
 `#/account`, `#/classes`, `#/c/ID`, `#/new-class`, `#/edit-class/ID`, `#/enroll/ID`,
 `#/payments`, `#/pay/MEMBER_ID`. New screens register in `SCREENS`, forms in `FORMS`, and
 `data-act` clicks in `ACTIONS`.
