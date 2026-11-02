@@ -414,3 +414,6 @@ li.row { padding: 0 4px 0 0; }
   .card { border: 0; box-shadow: none; padding: 0; background: #fff; }
   .waiver-text { max-height: none; overflow: visible; font-size: 12pt; }
 }
+
+/* Delete buttons */
+.btn.danger { color: var(--error); border-color: var(--error); background: var(--card); align-self: flex-start; }

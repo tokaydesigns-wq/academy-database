@@ -203,7 +203,7 @@ function classFormScreen(id) {
       </div>
       <label>Notes<textarea name="notes" rows="3">${esc(c.notes)}</textarea></label>
       ${id ? `<label class="check"><input name="active" type="checkbox" ${c.active ? 'checked' : ''}>
-        Running <span class="muted small">(untick if it’s stopped; nothing is deleted)</span></label>` : ''}
+        Running <span class="muted small">(untick if it’s stopped; it keeps its history)</span></label>` : ''}
     </div>
 
     <p id="form-error" class="error" hidden></p>
@@ -211,7 +211,44 @@ function classFormScreen(id) {
       <a class="btn" href="${back}">Cancel</a>
       <button class="btn primary" type="submit">${id ? 'Save changes' : 'Add class'}</button>
     </div>
-  </form>`;
+  </form>
+  ${id ? deleteClassCard(c) : ''}`;
+}
+
+// Delete is only offered when no current members are in the class. Classes with people in
+// them should be marked "not running" instead, which keeps their history.
+function deleteClassCard(c) {
+  const count = rosterOf(c.id).length;
+  return `<h3 class="section">Delete class</h3>
+  <div class="card stack">
+    ${count ? `<p class="muted small">${count === 1 ? '1 person is' : `${count} people are`} in this class.
+      To delete it, take everyone out first, or just untick “Running” above.</p>`
+      : `<p class="muted small">Removes this class completely. This can’t be undone.</p>
+      <button class="btn danger" type="button" data-act="delete-class" data-id="${esc(c.id)}">Delete class</button>`}
+  </div>`;
+}
+
+async function onDeleteClass(el) {
+  const c = findClass(el.dataset.id);
+  if (!c || rosterOf(c.id).length) return;
+  // Members who have left can still be listed in the class behind the scenes.
+  const leftovers = state.enrollments.filter(e => e.class_id === c.id);
+  const extra = leftovers.length
+    ? `\n\n${leftovers.length === 1 ? '1 former member is' : `${leftovers.length} former members are`} still listed in it and will be taken out too.`
+    : '';
+  if (!confirm(`Delete “${c.name}”? This can’t be undone.${extra}`)) return;
+  el.disabled = true;
+  try {
+    for (const e of leftovers) await DB.unenroll(e.member_id, c.id);
+    state.enrollments = state.enrollments.filter(e => e.class_id !== c.id);
+    await DB.deleteClass(c.id);
+    state.classes = state.classes.filter(x => x.id !== c.id);
+    toast(`${c.name} deleted`);
+    go('#/classes');
+  } catch (e) {
+    toast(e.message);
+    el.disabled = false;
+  }
 }
 
 async function onSaveClass(form) {
@@ -269,7 +306,7 @@ Object.assign(SCREENS, {
 });
 
 FORMS['class-form'] = onSaveClass;
-Object.assign(ACTIONS, { enroll: onEnroll, unenroll: onUnenroll });
+Object.assign(ACTIONS, { enroll: onEnroll, unenroll: onUnenroll, 'delete-class': onDeleteClass });
 
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'pick-search') return;
