@@ -145,6 +145,13 @@ const demoDB = {
     demoSave(this.data);
     return row;
   },
+  async deleteClass(id) {
+    if (this.data.enrollments.some(e => e.class_id === id)) {
+      throw new Error('Take everyone out of this class before deleting it.');
+    }
+    this.data.classes = this.data.classes.filter(c => c.id !== id);
+    demoSave(this.data);
+  },
   async listEnrollments() {
     return this.data.enrollments.map(e => ({ ...e }));
   },
@@ -272,6 +279,13 @@ function supabaseDB() {
     saveMember: (id, fields) => save('members', id, fields),
     listClasses: () => list('classes', 'name'),
     saveClass: (id, fields) => save('classes', id, fields),
+    // The database only allows deleting a class nobody is signed up for. If it refuses,
+    // nothing comes back, so check that a row was actually deleted.
+    async deleteClass(id) {
+      const { data, error } = await sb.from('classes').delete().eq('id', id).select('id');
+      if (error) fail(error);
+      if (!data.length) throw new Error('This class couldn’t be deleted. Take everyone out of it first.');
+    },
     listEnrollments: () => list('enrollments'),
     async enroll(member_id, class_id) {
       const { data, error } = await sb.from('enrollments').insert({ member_id, class_id }).select().single();

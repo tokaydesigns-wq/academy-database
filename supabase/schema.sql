@@ -98,7 +98,7 @@ create policy "staff add classes" on public.classes
   for insert to authenticated with check (public.is_staff());
 create policy "staff edit classes" on public.classes
   for update to authenticated using (public.is_staff()) with check (public.is_staff());
--- No delete policy on purpose: classes that stop running are made inactive.
+-- Classes that stop running are made inactive. Empty classes can be deleted (see the end of this file).
 
 drop trigger if exists classes_touch on public.classes;
 create trigger classes_touch before update on public.classes
@@ -220,3 +220,19 @@ create policy "staff read waiver photos" on storage.objects
   for select to authenticated using (bucket_id = 'waivers' and public.is_staff());
 create policy "staff add waiver photos" on storage.objects
   for insert to authenticated with check (bucket_id = 'waivers' and public.is_staff());
+
+-- Deleting a class (added 2026-11-02): staff can delete a class only when nobody is signed
+-- up for it. The app takes former members' sign-ups out first. Classes with people in them
+-- should be marked "not running" instead.
+drop policy if exists "staff delete empty classes" on public.classes;
+create policy "staff delete empty classes" on public.classes
+  for delete to authenticated using (
+    public.is_staff()
+    and not exists (select 1 from public.enrollments e where e.class_id = classes.id)
+  );
+
+-- Different times on different days (added 2026-11-02). Each session is
+-- {"day": "mon", "start": "18:00", "end": "19:00"}. days/start_time/end_time are still
+-- filled in (from the first session) so older code and backups keep working. Classes saved
+-- before this have an empty list, and the app reads their days and times instead.
+alter table public.classes add column if not exists sessions jsonb not null default '[]'::jsonb;

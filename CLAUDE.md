@@ -66,6 +66,9 @@ plan has no restorable backups, so these are the gym's safety copy). Routes: `#/
 - **Database changes go live separately.** After changing `schema.sql`, the owner must run it in
   Supabase **before** the pull request is merged, or the live app can't load.
 - **Always `esc()` member data** before putting it in HTML.
+- **Class times:** use `sessionsOf(c)` (core.js), which gives one `{day, start, end}` per day so
+  a class can run at different times on different days. `days`/`start_time`/`end_time` are kept
+  in step with the first session for older code and backups.
 - Database changes go in `supabase/schema.sql`. Keep it safe to re-run, and give every table RLS
   using `public.is_staff()`. `SETUP.md` is the owner's guide for setting up Supabase.
 - Test locally: `python -m http.server 8130`, then open http://localhost:8130.
