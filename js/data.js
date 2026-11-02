@@ -8,7 +8,8 @@ const MEMBER_FIELDS = [
 
 // ---------- Demo mode ----------
 
-const DEMO_KEY = 'academy.demo.v1';
+// v2 added class programs, member plans and payments; older demo data is simply replaced.
+const DEMO_KEY = 'academy.demo.v2';
 
 // Made-up people for trying the app. Never put real member details here.
 function demoMembers() {
@@ -16,7 +17,8 @@ function demoMembers() {
     id: crypto.randomUUID(), first_name: first, last_name: last,
     email: `${first}.${last}@example.com`.toLowerCase(), phone, date_of_birth: dob,
     address: '', emergency_name: '', emergency_phone: '', emergency_relation: '',
-    notes: '', active: true, created_at: new Date().toISOString(), ...extra
+    notes: '', active: true, plan: 'auto', custom_price: null, paid_by: null,
+    created_at: new Date().toISOString(), ...extra
   });
   return [
     m('Alex', 'Testerson', '555-0101', '1990-04-12',
@@ -34,15 +36,15 @@ function demoMembers() {
 
 // Made-up timetable, not the gym's real one.
 function demoClasses() {
-  const c = (name, days, start_time, end_time, instructor, capacity) => ({
-    id: crypto.randomUUID(), name, days, start_time, end_time, instructor, capacity,
+  const c = (name, program, days, start_time, end_time, instructor, capacity) => ({
+    id: crypto.randomUUID(), name, program, days, start_time, end_time, instructor, capacity,
     notes: '', active: true, created_at: new Date().toISOString()
   });
   return [
-    c('Kids Class', ['mon', 'wed'], '16:30', '17:15', 'Coach Example', 12),
-    c('Adult Fundamentals', ['tue', 'thu'], '18:00', '19:00', 'Coach Sample', 20),
-    c('Teen Class', ['fri'], '17:00', '18:00', 'Coach Example', 3),
-    c('Open Mat', ['sat'], '10:00', '12:00', '', null)
+    c('Kickboxing', 'kickboxing', ['mon', 'wed'], '18:00', '19:00', 'Coach Example', 20),
+    c('Muay Thai', 'muay_thai', ['tue', 'thu'], '18:00', '19:00', 'Coach Sample', 15),
+    c('Kids Jiu Jitsu', 'jiu_jitsu', ['fri'], '17:00', '18:00', 'Coach Example', 3),
+    c('Open Mat', null, ['sat'], '10:00', '12:00', '', null)
   ];
 }
 
@@ -50,21 +52,26 @@ function demoSeed() {
   const members = demoMembers();
   const classes = demoClasses();
   const enrol = (mi, ci) => ({ member_id: members[mi].id, class_id: classes[ci].id, enrolled_on: '2026-09-01' });
-  const enrollments = [enrol(1, 0), enrol(5, 0), enrol(0, 1), enrol(2, 1), enrol(3, 1), enrol(1, 2), enrol(5, 2)];
-  return { members, classes, enrollments };
+  const enrollments = [enrol(1, 0), enrol(5, 0), enrol(0, 1), enrol(2, 0), enrol(3, 1), enrol(3, 2),
+    enrol(1, 2), enrol(5, 2)];
+  // Fran's parent pays the family plan; Bea is covered by it.
+  members[5].plan = 'family';
+  Object.assign(members[1], { plan: 'covered', paid_by: members[5].id });
+  const month = thisMonth();
+  const pay = (mi, cents, method, covers = month) => ({
+    id: crypto.randomUUID(), member_id: members[mi].id, amount: cents / 100, paid_on: todayISO(),
+    covers_month: covers, method, note: '', recorded_by: 'demo@example.com',
+    created_at: new Date().toISOString()
+  });
+  const payments = [pay(0, 5999, 'card'), pay(5, 15000, 'cash'), pay(0, 5999, 'card', shiftMonth(month, -1)),
+    pay(3, 3000, 'cash')];
+  return { members, classes, enrollments, payments };
 }
 
 function demoLoad() {
   try {
     const saved = JSON.parse(localStorage.getItem(DEMO_KEY));
-    if (saved && Array.isArray(saved.members)) {
-      // Demo data saved before classes existed: add the made-up timetable.
-      if (!Array.isArray(saved.classes)) {
-        saved.classes = demoClasses();
-        saved.enrollments = [];
-      }
-      return saved;
-    }
+    if (saved && Array.isArray(saved.members)) return saved;
   } catch (e) { /* storage blocked or broken: start fresh */ }
   return { signedIn: false, ...demoSeed() };
 }
@@ -131,7 +138,21 @@ const demoDB = {
       .filter(e => !(e.member_id === member_id && e.class_id === class_id));
     demoSave(this.data);
   },
-  // Put the made-up members and classes back, for testing.
+  async listPayments() {
+    return this.data.payments.map(p => ({ ...p }));
+  },
+  async addPayment(fields) {
+    const row = { id: crypto.randomUUID(), recorded_by: 'demo@example.com',
+      created_at: new Date().toISOString(), ...fields };
+    this.data.payments.push(row);
+    demoSave(this.data);
+    return { ...row };
+  },
+  async deletePayment(id) {
+    this.data.payments = this.data.payments.filter(p => p.id !== id);
+    demoSave(this.data);
+  },
+  // Put the made-up data back, for testing.
   reset() {
     this.data = { signedIn: true, ...demoSeed() };
     demoSave(this.data);
@@ -212,6 +233,16 @@ function supabaseDB() {
     async unenroll(member_id, class_id) {
       const { error } = await sb.from('enrollments').delete()
         .eq('member_id', member_id).eq('class_id', class_id);
+      if (error) fail(error);
+    },
+    listPayments: () => list('payments', 'paid_on'),
+    async addPayment(fields) {
+      const { data, error } = await sb.from('payments').insert(fields).select().single();
+      if (error) fail(error);
+      return data;
+    },
+    async deletePayment(id) {
+      const { error } = await sb.from('payments').delete().eq('id', id);
       if (error) fail(error);
     }
   };

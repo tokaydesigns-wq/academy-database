@@ -126,3 +126,44 @@ create policy "staff remove enrollments" on public.enrollments
 
 revoke all on public.classes from anon;
 revoke all on public.enrollments from anon;
+
+-- Programs and plans: what each member pays per month.
+-- A class's program sets the price (kickboxing, muay_thai, jiu_jitsu; empty = no charge, e.g. open mat).
+alter table public.classes add column if not exists program text
+  check (program in ('kickboxing', 'muay_thai', 'jiu_jitsu'));
+
+-- plan: auto = worked out from their classes, family = pays the family plan,
+-- covered = on someone else's family plan (paid_by), custom = custom_price.
+alter table public.members add column if not exists plan text not null default 'auto'
+  check (plan in ('auto', 'family', 'covered', 'custom'));
+alter table public.members add column if not exists custom_price numeric(8,2)
+  check (custom_price is null or custom_price >= 0);
+alter table public.members add column if not exists paid_by uuid
+  references public.members(id) on delete set null;
+
+-- Payments: a record of money received. Never card numbers or bank details.
+create table if not exists public.payments (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.members(id) on delete cascade,
+  amount numeric(8,2) not null check (amount > 0),
+  paid_on date not null default current_date,
+  covers_month text not null check (covers_month ~ '^\d{4}-\d{2}$'),   -- e.g. 2026-11
+  method text not null check (method in ('cash', 'card', 'check', 'other')),
+  note text not null default '',
+  recorded_by text not null default coalesce(auth.jwt() ->> 'email', ''),
+  created_at timestamptz not null default now()
+);
+
+alter table public.payments enable row level security;
+drop policy if exists "staff read payments" on public.payments;
+drop policy if exists "staff add payments" on public.payments;
+drop policy if exists "staff remove payments" on public.payments;
+create policy "staff read payments" on public.payments
+  for select to authenticated using (public.is_staff());
+create policy "staff add payments" on public.payments
+  for insert to authenticated with check (public.is_staff());
+-- Staff can remove a payment entered by mistake.
+create policy "staff remove payments" on public.payments
+  for delete to authenticated using (public.is_staff());
+
+revoke all on public.payments from anon;

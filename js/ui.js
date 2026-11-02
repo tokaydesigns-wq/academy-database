@@ -1,12 +1,15 @@
 // Routing and screens. render() rebuilds #app from the current hash:
 // #/members (list), #/m/ID (one member), #/new, #/edit/ID, #/join/ID (add member to a class),
-// #/account. Class screens live in classes.js and register themselves in SCREENS.
+// #/account. Class and payment screens live in classes.js and payments.js and register
+// themselves in SCREENS.
 
 const state = {
   user: null,
   members: [],
   classes: [],
   enrollments: [],
+  payments: [],
+  payMonth: thisMonth(),   // month shown on the Payments tab
   loaded: false,
   loginError: '',
   filter: 'active',   // active | inactive | all
@@ -32,8 +35,8 @@ async function render() {
   if (!state.loaded) {
     app.innerHTML = demoBanner() + '<p class="empty">Loading…</p>';
     try {
-      [state.members, state.classes, state.enrollments] =
-        await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments()]);
+      [state.members, state.classes, state.enrollments, state.payments] = await Promise.all(
+        [DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments()]);
       state.loaded = true;
     } catch (e) {
       app.innerHTML = demoBanner() + `<p class="empty">${esc(e.message)}</p>
@@ -61,7 +64,7 @@ const SCREENS = {
 function navBar(current) {
   const tab = (name, label) =>
     `<a class="tab ${current === name ? 'on' : ''}" href="#/${name}">${label}</a>`;
-  return `<nav class="tabs">${tab('members', 'Members')}${tab('classes', 'Classes')}</nav>`;
+  return `<nav class="tabs">${tab('members', 'Members')}${tab('classes', 'Classes')}${tab('payments', 'Payments')}</nav>`;
 }
 
 function demoBanner() {
@@ -207,6 +210,9 @@ function memberScreen(id) {
   <h3 class="section">Classes</h3>
   ${memberClassesCard(m)}
 
+  <h3 class="section">Payments</h3>
+  ${memberPaymentsCard(m)}
+
   ${m.notes ? `<h3 class="section">Notes</h3><div class="card pre">${esc(m.notes)}</div>` : ''}`;
 }
 
@@ -299,6 +305,9 @@ function formScreen(id) {
       </div>
     </div>
 
+    <h3 class="section">Monthly price</h3>
+    ${planFieldsHtml(m, id)}
+
     <h3 class="section">Notes</h3>
     <div class="card stack">
       <label>Anything staff should know<textarea name="notes" rows="3">${esc(m.notes)}</textarea></label>
@@ -323,11 +332,14 @@ async function onSaveMember(form) {
   }
   fields.date_of_birth = fields.date_of_birth || null;
   fields.active = id ? form.active.checked : true;
+  const plan = readPlanFields(form);
+  Object.assign(fields, plan.fields);
 
   const problem =
     !fields.first_name ? 'Add a first name.' :
     fields.email && !looksLikeEmail(fields.email) ? 'That email doesn’t look right.' :
-    fields.date_of_birth && new Date(fields.date_of_birth) > new Date() ? 'Date of birth is in the future.' : '';
+    fields.date_of_birth && new Date(fields.date_of_birth) > new Date() ? 'Date of birth is in the future.' :
+    plan.problem;
   const errorEl = $('#form-error');
   if (problem) {
     errorEl.textContent = problem;
@@ -362,7 +374,7 @@ function accountScreen() {
   ${DEMO ? `
   <h3 class="section">Demo</h3>
   <div class="card stack">
-    <p class="muted small">Undo any test changes and put the made-up members and classes back.</p>
+    <p class="muted small">Undo any test changes and put the made-up members, classes and payments back.</p>
     <button class="btn" data-act="demo-reset">Reset demo data</button>
   </div>` : `
   <h3 class="section">Change password</h3>
@@ -405,7 +417,7 @@ const ACTIONS = {
   },
   async 'sign-out'() {
     await DB.signOut();
-    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], loaded: false, query: '' });
+    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], loaded: false, query: '' });
     go('#/members');
   },
   'demo-reset'() {
