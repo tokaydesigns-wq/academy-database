@@ -364,3 +364,13 @@ li.row { padding: 0 4px 0 0; }
 .backup-list { margin: 0; }
 .backup-list .pay-row { padding: 8px 0; }
 .backup-list .small-btn { margin: 0; flex: none; }
+
+/* Member page: their classes don't match their plan */
+.mismatch {
+  margin: 0 0 8px !important;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  font-size: 14px;
+}

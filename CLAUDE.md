@@ -23,8 +23,10 @@ The owner of this project isn't a developer. Write to them in plain language, sh
 
 ## Prices (from the gym's price list, 2026-11-02)
 
-No contracts and no auto-payments. Each class belongs to a program, and the app works out a
-member's monthly price from the programs of the classes they're in (`planFor()` in payments.js):
+No contracts and no auto-payments. Staff pick a member's plan (Kickboxing only, Muay Thai, Jiu
+Jitsu, All 3, family, covered, custom) or let the app work it out from the programs of the
+classes they're in (`planFor()` in payments.js). If their classes include a program their plan
+doesn't cover, the member page shows a warning.
 
 - Kickboxing only: $39.99/month, unlimited.
 - Muay Thai or Jiu Jitsu: $59.99/month, and Kickboxing is included free.
