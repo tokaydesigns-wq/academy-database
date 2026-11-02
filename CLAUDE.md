@@ -28,6 +28,18 @@ The owner of this project isn't a developer. Write to them in plain language, sh
 3. Classes and enrolment
 4. Payments log, and who's overdue
 
+## How the app is put together
+
+`index.html` loads supabase-js from jsDelivr, then `config.js`, `js/core.js` (helpers, `esc()`),
+`js/data.js` (`DB`: demo storage or Supabase, same methods) and `js/ui.js` (hash router, screens,
+event handlers). Routes: `#/members`, `#/m/ID`, `#/new`, `#/edit/ID`, `#/account`.
+
+- **Demo mode** turns on when `config.js` is blank. It uses made-up members in localStorage.
+- **Always `esc()` member data** before putting it in HTML.
+- Database changes go in `supabase/schema.sql`. Keep it safe to re-run, and give every table RLS
+  using `public.is_staff()`. `SETUP.md` is the owner's guide for setting up Supabase.
+- Test locally: `python -m http.server 8130`, then open http://localhost:8130.
+
 ## Working rules
 
 - Work on a branch and open a pull request for the owner to review once there's a remote.
