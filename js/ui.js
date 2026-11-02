@@ -1,9 +1,12 @@
 // Routing and screens. render() rebuilds #app from the current hash:
-// #/members (list), #/m/ID (one member), #/new, #/edit/ID, #/account
+// #/members (list), #/m/ID (one member), #/new, #/edit/ID, #/join/ID (add member to a class),
+// #/account. Class screens live in classes.js and register themselves in SCREENS.
 
 const state = {
   user: null,
   members: [],
+  classes: [],
+  enrollments: [],
   loaded: false,
   loginError: '',
   filter: 'active',   // active | inactive | all
@@ -27,9 +30,10 @@ async function render() {
     return;
   }
   if (!state.loaded) {
-    app.innerHTML = demoBanner() + '<p class="empty">Loading members…</p>';
+    app.innerHTML = demoBanner() + '<p class="empty">Loading…</p>';
     try {
-      state.members = await DB.listMembers();
+      [state.members, state.classes, state.enrollments] =
+        await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments()]);
       state.loaded = true;
     } catch (e) {
       app.innerHTML = demoBanner() + `<p class="empty">${esc(e.message)}</p>
@@ -38,19 +42,30 @@ async function render() {
     }
   }
   const r = route();
-  const screens = {
-    m: () => memberScreen(r.id),
-    new: () => formScreen(null),
-    edit: () => formScreen(r.id),
-    account: accountScreen
-  };
-  app.innerHTML = demoBanner() + (screens[r.name] || listScreen)();
-  if (!screens[r.name]) renderList();
+  const screen = SCREENS[r.name] || SCREENS.members;
+  app.innerHTML = demoBanner() + screen.html(r.id) + (screen.tab ? navBar(screen.tab) : '');
+  if (screen.after) screen.after(r.id);
   window.scrollTo(0, 0);
 }
 
+// Each screen: html(id) builds it, after(id) fills in live parts, tab shows the bottom bar.
+const SCREENS = {
+  members: { html: listScreen, after: renderList, tab: 'members' },
+  m: { html: memberScreen },
+  new: { html: () => formScreen(null) },
+  edit: { html: formScreen },
+  join: { html: joinScreen },
+  account: { html: accountScreen }
+};
+
+function navBar(current) {
+  const tab = (name, label) =>
+    `<a class="tab ${current === name ? 'on' : ''}" href="#/${name}">${label}</a>`;
+  return `<nav class="tabs">${tab('members', 'Members')}${tab('classes', 'Classes')}</nav>`;
+}
+
 function demoBanner() {
-  return DEMO ? `<div class="demo">Demo mode: made-up members, saved on this device only.</div>` : '';
+  return DEMO ? `<div class="demo">Demo mode: made-up data, saved on this device only.</div>` : '';
 }
 
 function topBar(title, back) {
@@ -189,7 +204,62 @@ function memberScreen(id) {
       : '<p>No emergency contact yet.</p>'}
   </dl>
 
+  <h3 class="section">Classes</h3>
+  ${memberClassesCard(m)}
+
   ${m.notes ? `<h3 class="section">Notes</h3><div class="card pre">${esc(m.notes)}</div>` : ''}`;
+}
+
+function memberClassesCard(m) {
+  const mine = classesOf(m.id);
+  return `<div class="card">
+    ${mine.length ? `<ul class="plain">${mine.map(c => `
+      <li><a class="line" href="#/c/${encodeURIComponent(c.id)}">
+        <strong>${esc(c.name)}</strong>
+        <span class="muted small">${esc(fmtSchedule(c))}</span>
+      </a></li>`).join('')}</ul>`
+      : '<p class="muted">Not in any classes.</p>'}
+    <a class="btn small-btn" href="#/join/${encodeURIComponent(m.id)}">+ Add to a class</a>
+  </div>`;
+}
+
+// ---------- Add a member to a class ----------
+
+function joinScreen(memberId) {
+  const m = findMember(memberId);
+  if (!m) return `${topBar('Add to a class', '#/members')}<p class="empty">This member wasn’t found.</p>`;
+  const inIds = new Set(classesOf(m.id).map(c => c.id));
+  const open = sortClasses(state.classes.filter(c => c.active && !inIds.has(c.id)));
+  return `${topBar('Add to a class', `#/m/${encodeURIComponent(m.id)}`)}
+  <p class="muted center">Pick a class for <strong>${esc(fullName(m))}</strong>.</p>
+  <ul class="list">${open.length ? open.map(c => {
+    const count = rosterOf(c.id).length;
+    const full = c.capacity && count >= c.capacity;
+    return `<li><button class="row" data-act="join" data-member="${esc(m.id)}" data-class="${esc(c.id)}">
+      <span class="grow">
+        <strong>${esc(c.name)}</strong>
+        <span class="muted small">${esc(fmtSchedule(c))}</span>
+      </span>
+      <span class="tag ${full ? 'full' : ''}">${spotsLabel(c, count)}</span>
+    </button></li>`;
+  }).join('') : `<li class="empty">${state.classes.length ? 'They’re already in every class.' : 'No classes yet. Add them on the Classes tab.'}</li>`}
+  </ul>`;
+}
+
+async function onJoin(el) {
+  const c = findClass(el.dataset.class);
+  const count = rosterOf(c.id).length;
+  if (c.capacity && count >= c.capacity &&
+      !confirm(`${c.name} is full (${count} of ${c.capacity}). Add them anyway?`)) return;
+  el.disabled = true;
+  try {
+    state.enrollments.push(await DB.enroll(el.dataset.member, c.id));
+    toast(`Added to ${c.name}`);
+    go(`#/m/${encodeURIComponent(el.dataset.member)}`);
+  } catch (e) {
+    toast(e.message);
+    el.disabled = false;
+  }
 }
 
 // ---------- Add / edit ----------
@@ -292,8 +362,8 @@ function accountScreen() {
   ${DEMO ? `
   <h3 class="section">Demo</h3>
   <div class="card stack">
-    <p class="muted small">Undo any test changes and put the made-up members back.</p>
-    <button class="btn" data-act="demo-reset">Reset demo members</button>
+    <p class="muted small">Undo any test changes and put the made-up members and classes back.</p>
+    <button class="btn" data-act="demo-reset">Reset demo data</button>
   </div>` : `
   <h3 class="section">Change password</h3>
   <form id="password-form" class="card stack" novalidate>
@@ -324,38 +394,40 @@ async function onChangePassword(form) {
 
 // ---------- Events ----------
 
+// Form id -> submit handler, and data-act -> click handler. classes.js adds its own.
+const FORMS = { 'login-form': onLogin, 'member-form': onSaveMember, 'password-form': onChangePassword };
+
+const ACTIONS = {
+  filter(el) {
+    state.filter = el.dataset.value;
+    document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === el));
+    renderList();
+  },
+  async 'sign-out'() {
+    await DB.signOut();
+    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], loaded: false, query: '' });
+    go('#/members');
+  },
+  'demo-reset'() {
+    DB.reset();
+    state.loaded = false;
+    toast('Demo data reset');
+    go('#/members');
+  },
+  join: onJoin,
+  retry: render
+};
+
 document.addEventListener('submit', (e) => {
-  const handlers = { 'login-form': onLogin, 'member-form': onSaveMember, 'password-form': onChangePassword };
-  const handler = handlers[e.target.id];
+  const handler = FORMS[e.target.id];
   if (!handler) return;
   e.preventDefault();
   handler(e.target);
 });
 
-document.addEventListener('click', async (e) => {
+document.addEventListener('click', (e) => {
   const el = e.target.closest('[data-act]');
-  if (!el) return;
-  switch (el.dataset.act) {
-    case 'filter':
-      state.filter = el.dataset.value;
-      document.querySelectorAll('.chip').forEach(c => c.classList.toggle('on', c === el));
-      renderList();
-      break;
-    case 'sign-out':
-      await DB.signOut();
-      Object.assign(state, { user: null, members: [], loaded: false, query: '' });
-      go('#/members');
-      break;
-    case 'demo-reset':
-      DB.reset();
-      state.loaded = false;
-      toast('Demo members reset');
-      go('#/members');
-      break;
-    case 'retry':
-      render();
-      break;
-  }
+  if (el && ACTIONS[el.dataset.act]) ACTIONS[el.dataset.act](el);
 });
 
 document.addEventListener('input', (e) => {
@@ -366,11 +438,12 @@ document.addEventListener('input', (e) => {
 
 window.addEventListener('hashchange', render);
 
-(async function start() {
+// Wait for every script (classes.js too) before drawing the first screen.
+document.addEventListener('DOMContentLoaded', async function start() {
   try {
     state.user = await DB.currentUser();
   } catch (e) {
     state.loginError = e.message;
   }
   render();
-})();
+});
