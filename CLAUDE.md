@@ -18,7 +18,11 @@ The owner of this project isn't a developer. Write to them in plain language, sh
   goes through a provider like Stripe so card details never touch our database.
 - **Waivers, both ways:** members sign on screen (finger signature, saved with date and waiver
   version), and staff can upload photos of old paper waivers.
-  - Use the gym's own waiver wording (the owner is sending the file). Never make up legal text.
+  - The wording is copied **exactly** (typos included) from the gym's "Academy Enrollment.pdf"
+    into `js/waiver-text.js`. Never edit legal text without the owner's say-so. If the wording
+    changes, bump `WAIVER.version`, and members who signed an older version get asked to re-sign.
+  - Each signed waiver stores a copy of the exact text that was signed.
+  - Signing happens with a staff member signed in (no self-service kiosk for now).
   - Under 18: a parent or guardian signs, and their name is recorded with the signature.
   - A waiver lasts as long as the person is a member. Only ask for a new one if the wording changes.
 - No build step and no frameworks unless there's a clear reason. Plain HTML, CSS and JavaScript.

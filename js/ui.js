@@ -9,6 +9,7 @@ const state = {
   classes: [],
   enrollments: [],
   payments: [],
+  waivers: [],
   payMonth: thisMonth(),   // month shown on the Payments tab
   loaded: false,
   loginError: '',
@@ -35,8 +36,8 @@ async function render() {
   if (!state.loaded) {
     app.innerHTML = demoBanner() + '<p class="empty">Loading…</p>';
     try {
-      [state.members, state.classes, state.enrollments, state.payments] = await Promise.all(
-        [DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments()]);
+      [state.members, state.classes, state.enrollments, state.payments, state.waivers] = await Promise.all(
+        [DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments(), DB.listWaivers()]);
       state.loaded = true;
     } catch (e) {
       app.innerHTML = demoBanner() + `<p class="empty">${esc(e.message)}</p>
@@ -82,6 +83,12 @@ function topBar(title, back) {
 
 function findMember(id) {
   return state.members.find(m => m.id === id);
+}
+
+// "1 Example St, Exampleton, WI 00000"
+function fullAddress(m) {
+  const stateZip = [m.state, m.zip].filter(Boolean).join(' ');
+  return [m.address, m.city, stateZip].filter(Boolean).join(', ');
 }
 
 // ---------- Sign in ----------
@@ -132,7 +139,7 @@ function listScreen() {
   <div class="tools">
     <input id="search" type="search" placeholder="Search name, phone or email"
       value="${esc(state.query)}" autocomplete="off" aria-label="Search members">
-    <div class="chips">${chip('active', 'Active')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
+    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
   </div>
   <p id="count" class="muted small"></p>
   <ul id="list" class="list"></ul>
@@ -149,8 +156,14 @@ function matches(m, q) {
 // Redraws just the list, so the search box keeps focus while typing.
 function renderList() {
   const q = state.query.trim().toLowerCase();
+  const keep = {
+    active: m => m.active,
+    nowaiver: m => m.active && !waiverStatus(m).ok,
+    inactive: m => !m.active,
+    all: () => true
+  }[state.filter];
   const shown = state.members
-    .filter(m => state.filter === 'all' || (state.filter === 'active') === m.active)
+    .filter(keep)
     .filter(m => matches(m, q))
     .sort((a, b) => fullName(a).localeCompare(fullName(b)));
 
@@ -162,9 +175,10 @@ function renderList() {
         <strong>${esc(fullName(m))}</strong>
         <span class="muted small">${esc(m.phone || m.email || 'No contact info')}</span>
       </span>
-      ${m.active ? '' : '<span class="tag">Inactive</span>'}
+      ${m.active ? (waiverStatus(m).ok ? '' : '<span class="tag full">No waiver</span>') : '<span class="tag">Inactive</span>'}
     </a></li>`).join('')
-    : `<li class="empty">${state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.'}</li>`;
+    : `<li class="empty">${state.filter === 'nowaiver' && !q ? 'Every active member has a waiver.'
+      : state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.'}</li>`;
 }
 
 // ---------- One member ----------
@@ -190,20 +204,28 @@ function memberScreen(id) {
     </div>
   </section>
 
+  ${m.medical ? `<div class="card medical"><strong>Medical:</strong> ${esc(m.medical)}</div>` : ''}
+
+  <h3 class="section">Waiver</h3>
+  ${memberWaiverCard(m)}
+
   <h3 class="section">Contact</h3>
   <dl class="card">
     ${field('Phone', esc(m.phone))}
+    ${field('Alt phone', esc(m.alt_phone))}
     ${field('Email', esc(m.email))}
-    ${field('Address', esc(m.address))}
+    ${field('Address', esc(fullAddress(m)))}
     ${field('Date of birth', m.date_of_birth ? `${esc(fmtDate(m.date_of_birth))} (age ${age})` : '')}
-    ${m.phone || m.email || m.address || m.date_of_birth ? '' : '<p class="muted">No contact info yet.</p>'}
+    ${field('Sex', m.sex === 'male' ? 'Male' : m.sex === 'female' ? 'Female' : '')}
+    ${m.phone || m.email || fullAddress(m) || m.date_of_birth ? '' : '<p class="muted">No contact info yet.</p>'}
   </dl>
 
   <h3 class="section">Emergency contact</h3>
   <dl class="card ${hasEmergency ? '' : 'warn'}">
     ${hasEmergency ? `
       ${field('Name', esc(m.emergency_name) + (m.emergency_relation ? ` <span class="muted">(${esc(m.emergency_relation)})</span>` : ''))}
-      ${field('Phone', m.emergency_phone ? `<a href="${esc(telHref(m.emergency_phone))}">${esc(m.emergency_phone)}</a>` : '')}`
+      ${field('Phone', m.emergency_phone ? `<a href="${esc(telHref(m.emergency_phone))}">${esc(m.emergency_phone)}</a>` : '')}
+      ${field('Alt phone', m.emergency_alt_phone ? `<a href="${esc(telHref(m.emergency_alt_phone))}">${esc(m.emergency_alt_phone)}</a>` : '')}`
       : '<p>No emergency contact yet.</p>'}
   </dl>
 
@@ -286,22 +308,46 @@ function formScreen(id) {
         ${input('first_name', 'First name *', m, 'text', 'required autocomplete="off"')}
         ${input('last_name', 'Last name', m, 'text', 'autocomplete="off"')}
       </div>
-      ${input('date_of_birth', 'Date of birth', m, 'date')}
+      <div class="two">
+        ${input('date_of_birth', 'Date of birth', m, 'date')}
+        <label>Sex<select name="sex">
+          <option value="">–</option>
+          <option value="male" ${m.sex === 'male' ? 'selected' : ''}>Male</option>
+          <option value="female" ${m.sex === 'female' ? 'selected' : ''}>Female</option>
+        </select></label>
+      </div>
     </div>
 
     <h3 class="section">Contact</h3>
     <div class="card stack">
-      ${input('phone', 'Phone', m, 'tel', 'autocomplete="off"')}
+      <div class="two">
+        ${input('phone', 'Phone', m, 'tel', 'autocomplete="off"')}
+        ${input('alt_phone', 'Alt phone', m, 'tel', 'autocomplete="off"')}
+      </div>
       ${input('email', 'Email', m, 'email', 'autocomplete="off"')}
-      ${input('address', 'Address', m, 'text', 'autocomplete="off"')}
+      ${input('address', 'Street address', m, 'text', 'autocomplete="off"')}
+      <div class="city-row">
+        ${input('city', 'City', m, 'text', 'autocomplete="off"')}
+        ${input('state', 'State', m, 'text', 'autocomplete="off" maxlength="20"')}
+        ${input('zip', 'Zip', m, 'text', 'autocomplete="off" inputmode="numeric" maxlength="10"')}
+      </div>
+    </div>
+
+    <h3 class="section">Medical conditions</h3>
+    <div class="card stack">
+      <label><span>Anything coaches should know <span class="muted small">(shown at the top of their page)</span></span>
+        <textarea name="medical" rows="2" placeholder="e.g. asthma, bad knee, none">${esc(m.medical)}</textarea></label>
     </div>
 
     <h3 class="section">Emergency contact</h3>
     <div class="card stack">
-      ${input('emergency_name', 'Name', m, 'text', 'autocomplete="off"')}
+      <div class="two">
+        ${input('emergency_name', 'Name', m, 'text', 'autocomplete="off"')}
+        ${input('emergency_relation', 'Relation', m, 'text', 'placeholder="e.g. Mom" autocomplete="off"')}
+      </div>
       <div class="two">
         ${input('emergency_phone', 'Phone', m, 'tel', 'autocomplete="off"')}
-        ${input('emergency_relation', 'Relationship', m, 'text', 'placeholder="e.g. Mum" autocomplete="off"')}
+        ${input('emergency_alt_phone', 'Alt phone', m, 'tel', 'autocomplete="off"')}
       </div>
     </div>
 
@@ -331,6 +377,7 @@ async function onSaveMember(form) {
     fields[name] = (form[name].value || '').trim();
   }
   fields.date_of_birth = fields.date_of_birth || null;
+  fields.sex = fields.sex || null;
   fields.active = id ? form.active.checked : true;
   const plan = readPlanFields(form);
   Object.assign(fields, plan.fields);
@@ -418,7 +465,8 @@ const ACTIONS = {
   },
   async 'sign-out'() {
     await DB.signOut();
-    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], loaded: false, query: '' });
+    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], waivers: [],
+      loaded: false, query: '' });
     go('#/members');
   },
   'demo-reset'() {

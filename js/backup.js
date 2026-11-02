@@ -30,15 +30,17 @@ const BACKUPS = {
     label: 'Members',
     about: 'Contact details, emergency contacts, plans and classes',
     build: () => toCsv(
-      ['First name', 'Last name', 'Active', 'Phone', 'Email', 'Date of birth', 'Address',
-        'Emergency contact', 'Emergency phone', 'Relationship', 'Plan', 'Monthly price',
-        'Classes', 'Notes', 'Added'],
+      ['First name', 'Last name', 'Active', 'Phone', 'Alt phone', 'Email', 'Date of birth', 'Sex',
+        'Street address', 'City', 'State', 'Zip', 'Medical conditions',
+        'Emergency contact', 'Relation', 'Emergency phone', 'Emergency alt phone',
+        'Waiver', 'Plan', 'Monthly price', 'Classes', 'Notes', 'Added'],
       [...state.members].sort((a, b) => fullName(a).localeCompare(fullName(b))).map(m => {
         const plan = planFor(m);
-        return [m.first_name, m.last_name, yesNo(m.active), m.phone, m.email, m.date_of_birth,
-          m.address, m.emergency_name, m.emergency_phone, m.emergency_relation, plan.label,
-          money(plan.cents), classesOf(m.id).map(c => c.name).join('; '), m.notes,
-          (m.created_at || '').slice(0, 10)];
+        return [m.first_name, m.last_name, yesNo(m.active), m.phone, m.alt_phone, m.email,
+          m.date_of_birth, m.sex, m.address, m.city, m.state, m.zip, m.medical,
+          m.emergency_name, m.emergency_relation, m.emergency_phone, m.emergency_alt_phone,
+          waiverStatus(m).label, plan.label, money(plan.cents),
+          classesOf(m.id).map(c => c.name).join('; '), m.notes, (m.created_at || '').slice(0, 10)];
       }))
   },
   classes: {
