@@ -1,0 +1,8 @@
+// Supabase settings, from Supabase > Project Settings > API.
+// Leave them blank to run in demo mode: made-up members, saved on this device only.
+// The anon key is meant to be public. The rules in supabase/schema.sql keep member data private.
+// Never put the service_role key (or any other secret) in this file.
+window.CONFIG = {
+  supabaseUrl: '',
+  supabaseAnonKey: ''
+};
