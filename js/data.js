@@ -16,7 +16,7 @@ const WAIVER_LIST_COLUMNS =
 // ---------- Demo mode ----------
 
 // v3 added waivers and the enrollment form fields; older demo data is simply replaced.
-const DEMO_KEY = 'academy.demo.v3';
+const DEMO_KEY = 'academy.demo.v3';   // pauses were added later; demoLoad fills them in
 
 // Made-up people for trying the app. Never put real member details here.
 function demoMembers() {
@@ -86,13 +86,22 @@ function demoSeed() {
   });
   const waivers = [waiver(0), waiver(5, { signature: null, guardian_name: 'Gus Mockley', guardian_signature: scribble }),
     waiver(3, { version: '0', signed_on: '2025-01-15' })];
-  return { members, classes, enrollments, payments, waivers };
+  // Alex was added three months ago, so earlier months count for him. Charlie is taking
+  // this month and next off.
+  members[0].created_at = `${shiftMonth(month, -3)}-01T12:00:00`;
+  const pauses = [{ id: crypto.randomUUID(), member_id: members[2].id, start_month: month,
+    end_month: shiftMonth(month, 1), note: 'Knee surgery', created_by: 'demo@example.com',
+    created_at: new Date().toISOString() }];
+  return { members, classes, enrollments, payments, waivers, pauses };
 }
 
 function demoLoad() {
   try {
     const saved = JSON.parse(localStorage.getItem(DEMO_KEY));
-    if (saved && Array.isArray(saved.members)) return saved;
+    if (saved && Array.isArray(saved.members)) {
+      saved.pauses = saved.pauses || [];   // demo data saved before pauses existed
+      return saved;
+    }
   } catch (e) { /* storage blocked or broken: start fresh */ }
   return { signedIn: false, ...demoSeed() };
 }
@@ -206,6 +215,18 @@ const demoDB = {
   },
   async waiverPhotoUrl(path) {
     return path;
+  },
+  async listPauses() {
+    return this.data.pauses.map(p => ({ ...p }));
+  },
+  async savePause(id, fields) {
+    const row = demoUpsert(this.data.pauses, id, { created_by: 'demo@example.com', ...fields });
+    demoSave(this.data);
+    return row;
+  },
+  async deletePause(id) {
+    this.data.pauses = this.data.pauses.filter(p => p.id !== id);
+    demoSave(this.data);
   },
   // Put the made-up data back, for testing.
   reset() {
@@ -334,6 +355,12 @@ function supabaseDB() {
       const { data, error } = await sb.storage.from('waivers').createSignedUrl(path, 3600);
       if (error) fail(error);
       return data.signedUrl;
+    },
+    listPauses: () => list('pauses'),
+    savePause: (id, fields) => save('pauses', id, fields),
+    async deletePause(id) {
+      const { error } = await sb.from('pauses').delete().eq('id', id);
+      if (error) fail(error);
     }
   };
 }
