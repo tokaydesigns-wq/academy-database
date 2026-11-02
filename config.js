@@ -3,6 +3,6 @@
 // The anon key is meant to be public. The rules in supabase/schema.sql keep member data private.
 // Never put the service_role key (or any other secret) in this file.
 window.CONFIG = {
-  supabaseUrl: '',
-  supabaseAnonKey: ''
+  supabaseUrl: 'https://uyafarruajkltsyofrwq.supabase.co',
+  supabaseAnonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InV5YWZhcnJ1YWprbHRzeW9mcndxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3OTM2NDAyMDUsImV4cCI6MjEwOTIxNjIwNX0.G3ndpqG93lFBlCWgHimpa6w_rbFJ3wrSiddNjwes4sM'
 };
