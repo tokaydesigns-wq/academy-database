@@ -236,3 +236,31 @@ create policy "staff delete empty classes" on public.classes
 -- filled in (from the first session) so older code and backups keep working. Classes saved
 -- before this have an empty list, and the app reads their days and times instead.
 alter table public.classes add column if not exists sessions jsonb not null default '[]'::jsonb;
+
+-- Paused plans (added 2026-11-02): a member who takes a month or two off. Nothing is due for
+-- months from start_month to end_month (both included). end_month is empty while there's no
+-- return date yet. Pauses are kept after they end, so past paused months never count as owed.
+create table if not exists public.pauses (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.members(id) on delete cascade,
+  start_month text not null check (start_month ~ '^\d{4}-\d{2}$'),
+  end_month text check (end_month is null or (end_month ~ '^\d{4}-\d{2}$' and end_month >= start_month)),
+  note text not null default '',
+  created_by text not null default coalesce(auth.jwt() ->> 'email', ''),
+  created_at timestamptz not null default now()
+);
+
+alter table public.pauses enable row level security;
+drop policy if exists "staff read pauses" on public.pauses;
+drop policy if exists "staff add pauses" on public.pauses;
+drop policy if exists "staff edit pauses" on public.pauses;
+drop policy if exists "staff remove pauses" on public.pauses;
+create policy "staff read pauses" on public.pauses
+  for select to authenticated using (public.is_staff());
+create policy "staff add pauses" on public.pauses
+  for insert to authenticated with check (public.is_staff());
+create policy "staff edit pauses" on public.pauses
+  for update to authenticated using (public.is_staff()) with check (public.is_staff());
+create policy "staff remove pauses" on public.pauses
+  for delete to authenticated using (public.is_staff());
+revoke all on public.pauses from anon;

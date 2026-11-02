@@ -10,10 +10,11 @@ const state = {
   enrollments: [],
   payments: [],
   waivers: [],
+  pauses: [],
   payMonth: thisMonth(),   // month shown on the Payments tab
   loaded: false,
   loginError: '',
-  filter: 'active',   // active | inactive | all
+  filter: 'active',   // active | nowaiver | paused | inactive | all
   query: ''
 };
 
@@ -36,8 +37,9 @@ async function render() {
   if (!state.loaded) {
     app.innerHTML = demoBanner() + '<p class="empty">Loading…</p>';
     try {
-      [state.members, state.classes, state.enrollments, state.payments, state.waivers] = await Promise.all(
-        [DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments(), DB.listWaivers()]);
+      [state.members, state.classes, state.enrollments, state.payments, state.waivers, state.pauses] =
+        await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments(),
+          DB.listWaivers(), DB.listPauses()]);
       state.loaded = true;
     } catch (e) {
       app.innerHTML = demoBanner() + `<p class="empty">${esc(e.message)}</p>
@@ -139,7 +141,7 @@ function listScreen() {
   <div class="tools">
     <input id="search" type="search" placeholder="Search name, phone or email"
       value="${esc(state.query)}" autocomplete="off" aria-label="Search members">
-    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
+    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('paused', 'Paused')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
   </div>
   <p id="count" class="muted small"></p>
   <ul id="list" class="list"></ul>
@@ -159,6 +161,7 @@ function renderList() {
   const keep = {
     active: m => m.active,
     nowaiver: m => m.active && !waiverStatus(m).ok,
+    paused: m => m.active && !!pauseFor(m, thisMonth()),
     inactive: m => !m.active,
     all: () => true
   }[state.filter];
@@ -175,7 +178,9 @@ function renderList() {
         <strong>${esc(fullName(m))}</strong>
         <span class="muted small">${esc(m.phone || m.email || 'No contact info')}</span>
       </span>
-      ${m.active ? (waiverStatus(m).ok ? '' : '<span class="tag full">No waiver</span>') : '<span class="tag">Inactive</span>'}
+      ${!m.active ? '<span class="tag">Inactive</span>'
+        : pauseFor(m, thisMonth()) ? '<span class="tag">Paused</span>'
+        : waiverStatus(m).ok ? '' : '<span class="tag full">No waiver</span>'}
     </a></li>`).join('')
     : `<li class="empty">${state.filter === 'nowaiver' && !q ? 'Every active member has a waiver.'
       : state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.'}</li>`;
@@ -465,7 +470,7 @@ const ACTIONS = {
   },
   async 'sign-out'() {
     await DB.signOut();
-    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], waivers: [],
+    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], waivers: [], pauses: [],
       loaded: false, query: '' });
     go('#/members');
   },

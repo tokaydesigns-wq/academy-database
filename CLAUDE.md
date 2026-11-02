@@ -40,6 +40,9 @@ doesn't cover, the member page shows a warning.
 - +$10 for each extra course, e.g. Muay Thai + Jiu Jitsu = $69.99 (Kickboxing still included).
 - Family plan: $150/month and covers the whole household. One member pays, and the others are
   "covered" by them.
+- Nothing is due for months before a member was added to the app (`joinedMonth()`, from
+  `created_at`) or while their plan is paused (`pauses` table, `pauseFor()`). Pauses are kept
+  after they end so past paused months never count as owed. Past months use the current plan.
 - Staff can set a custom price for special deals. Karate and Judo are no longer offered. Punch
   cards exist, but the owner chose not to track them.
 

@@ -59,16 +59,50 @@ function paymentsOf(memberId) {
     .sort((a, b) => b.paid_on.localeCompare(a.paid_on) || b.created_at.localeCompare(a.created_at));
 }
 
-// { due, paid, owes } in cents for one month.
+// The month they were added to the app ("2026-11"). Nothing is due before it.
+function joinedMonth(m) {
+  const d = m.created_at ? new Date(m.created_at) : new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
+// The pause covering this month, if any. A pause with no end_month runs until they're resumed.
+function pauseFor(m, month) {
+  return state.pauses.find(p => p.member_id === m.id && p.start_month <= month &&
+    (!p.end_month || month <= p.end_month));
+}
+
+// The pause that's running now or starts later (the one staff would edit or end), if any.
+function currentPause(m) {
+  const now = thisMonth();
+  return state.pauses
+    .filter(p => p.member_id === m.id && (!p.end_month || p.end_month >= now))
+    .sort((a, b) => a.start_month.localeCompare(b.start_month))[0];
+}
+
+// { due, paid, owes, why } in cents for one month. Nothing is due before they joined or
+// while their plan is paused. Past months use their current plan's price.
 function statusFor(m, month) {
-  const due = planFor(m).cents;
   const paid = state.payments
     .filter(p => p.member_id === m.id && p.covers_month === month)
     .reduce((sum, p) => sum + toCents(p.amount), 0);
-  return { due, paid, owes: Math.max(due - paid, 0) };
+  const why = month < joinedMonth(m) ? 'before' : pauseFor(m, month) ? 'paused' : '';
+  const due = why ? 0 : planFor(m).cents;
+  return { due, paid, owes: Math.max(due - paid, 0), why };
+}
+
+// Months since they joined (up to this one) that aren't fully paid, newest first.
+function unpaidMonths(m) {
+  const months = [];
+  for (let month = joinedMonth(m); month <= thisMonth(); month = shiftMonth(month, 1)) {
+    const s = statusFor(m, month);
+    if (s.owes) months.push({ month, owes: s.owes });
+  }
+  return months.reverse();
 }
 
 function statusText(s) {
+  if (s.why === 'paused') return 'Plan paused, nothing due';
+  if (s.why === 'before') return 'Not added yet';
   if (!s.due) return s.paid ? `Paid ${fmtMoney(s.paid)}` : 'Nothing due';
   if (!s.owes) return `Paid ✓`;
   return s.paid ? `Owes ${fmtMoney(s.owes)} (paid ${fmtMoney(s.paid)})` : `Owes ${fmtMoney(s.owes)}`;
@@ -82,12 +116,19 @@ function memberPaymentsCard(m) {
   const s = statusFor(m, month);
   const recent = paymentsOf(m.id).slice(0, 6);
   const extra = planMismatch(m);
+  const behind = unpaidMonths(m);
+  const total = behind.reduce((sum, b) => sum + b.owes, 0);
   return `<div class="card">
+    ${pauseBanner(m)}
     ${extra.length ? `<p class="mismatch">In a ${esc(extra.map(programLabel).join(' and '))} class, but their plan
       doesn’t include it. Check their plan or their classes.</p>` : ''}
     <dl>
       ${field('Plan', `${esc(plan.label)}${plan.cents ? ` · <strong>${fmtMoney(plan.cents)}/mo</strong>` : ''}`)}
       ${field(esc(fmtMonth(month)), `<span class="${s.owes ? 'owes' : 'paid'}">${esc(statusText(s))}</span>`)}
+      ${behind.length > 1 || (behind.length === 1 && behind[0].month !== month)
+        ? field('Unpaid months', `<span class="owes">${fmtMoney(total)} total</span><br>
+          <span class="small">${behind.map(b => `${esc(fmtMonth(b.month))}: ${fmtMoney(b.owes)}`).join('<br>')}</span>`) : ''}
+      ${field('Billing since', esc(fmtMonth(joinedMonth(m))))}
     </dl>
     ${recent.length ? `<ul class="plain pay-list">${recent.map(p => `
       <li class="pay-row">
@@ -98,7 +139,31 @@ function memberPaymentsCard(m) {
         <button class="icon-btn remove" data-act="delete-payment" data-id="${esc(p.id)}"
           aria-label="Remove this payment">✕</button>
       </li>`).join('')}</ul>` : '<p class="muted pay-none">No payments recorded yet.</p>'}
-    <a class="btn small-btn" href="#/pay/${encodeURIComponent(m.id)}" data-act="pay-from-member">+ Record payment</a>
+    <div class="actions start">
+      <a class="btn small-btn" href="#/pay/${encodeURIComponent(m.id)}" data-act="pay-from-member">+ Record payment</a>
+      ${currentPause(m) ? '' : `<a class="btn small-btn" href="#/pause/${encodeURIComponent(m.id)}">⏸ Pause plan</a>`}
+    </div>
+  </div>`;
+}
+
+// "Paused Nov 2026 – Dec 2026" (or "from Nov 2026, no return date yet"), with edit/end buttons.
+function pauseBanner(m) {
+  const p = currentPause(m);
+  if (!p) return '';
+  const now = thisMonth();
+  const started = p.start_month <= now;
+  const when = p.end_month
+    ? `${fmtMonth(p.start_month)} to ${fmtMonth(p.end_month)}, back in ${fmtMonth(shiftMonth(p.end_month, 1))}`
+    : `from ${fmtMonth(p.start_month)}, no return date yet`;
+  return `<div class="pause-banner">
+    <strong>⏸ ${started ? 'Plan paused' : 'Pause planned'}</strong>
+    <span class="small">${esc(when)}${p.note ? ` · ${esc(p.note)}` : ''}</span>
+    <span class="small muted">Nothing is due while paused. Their details and classes are kept.</span>
+    <div class="actions start">
+      <a class="btn small-btn" href="#/pause/${encodeURIComponent(m.id)}">Change</a>
+      ${started ? `<button class="btn small-btn" data-act="resume" data-id="${esc(p.id)}">▶ They’re back</button>`
+        : `<button class="btn small-btn" data-act="cancel-pause" data-id="${esc(p.id)}">Cancel pause</button>`}
+    </div>
   </div>`;
 }
 
@@ -183,7 +248,8 @@ function paymentsScreen() {
   const billed = rows.filter(r => r.s.due > 0);
   const owing = billed.filter(r => r.s.owes > 0).sort((a, b) => b.s.owes - a.s.owes);
   const paid = billed.filter(r => !r.s.owes).sort((a, b) => fullName(a.m).localeCompare(fullName(b.m)));
-  const noPlan = rows.filter(r => !r.s.due && r.m.plan !== 'covered');
+  const noPlan = rows.filter(r => !r.s.due && r.m.plan !== 'covered' && !r.s.why);
+  const paused = rows.filter(r => r.s.why === 'paused');
   const collected = state.payments.filter(p => p.covers_month === month)
     .reduce((sum, p) => sum + toCents(p.amount), 0);
   const stillOwed = owing.reduce((sum, r) => sum + r.s.owes, 0);
@@ -214,7 +280,104 @@ function paymentsScreen() {
   ${paid.length ? `<h3 class="section">Paid (${paid.length})</h3><ul class="list">${paid.map(row).join('')}</ul>` : ''}
 
   ${noPlan.length ? `<p class="muted small center">${noPlan.length === 1 ? '1 active member isn’t' : `${noPlan.length} active members aren’t`}
-    in any paid classes, so nothing is due: ${esc(noPlan.map(r => fullName(r.m)).join(', '))}.</p>` : ''}`;
+    in any paid classes, so nothing is due: ${esc(noPlan.map(r => fullName(r.m)).join(', '))}.</p>` : ''}
+  ${paused.length ? `<p class="muted small center">⏸ Paused this month, nothing due:
+    ${esc(paused.map(r => fullName(r.m)).join(', '))}.</p>` : ''}`;
+}
+
+// ---------- Pause a plan ----------
+
+function pauseScreen(memberId) {
+  const m = findMember(memberId);
+  if (!m) return `${topBar('Pause plan', '#/members')}<p class="empty">This member wasn’t found.</p>`;
+  const p = currentPause(m);
+  const back = `#/m/${encodeURIComponent(m.id)}`;
+  return `${topBar(p ? 'Change pause' : 'Pause plan', back)}
+  <p class="muted center">For <strong>${esc(fullName(m))}</strong>. Nothing is due while their plan is
+    paused. Their details, classes and waiver are all kept.</p>
+  <form id="pause-form" class="stack" data-member="${esc(m.id)}" data-id="${esc(p ? p.id : '')}" novalidate>
+    <div class="card stack">
+      <label>Pause starting<input name="start_month" type="month" value="${esc(p ? p.start_month : thisMonth())}"></label>
+      <label><span>Coming back in <span class="muted small">(leave empty if not sure)</span></span>
+        <input name="back_month" type="month" value="${esc(p && p.end_month ? shiftMonth(p.end_month, 1) : '')}"></label>
+      <label><span>Reason <span class="muted small">(optional)</span></span>
+        <input name="note" value="${esc(p ? p.note : '')}" placeholder="e.g. injury, travelling" autocomplete="off"></label>
+    </div>
+    <p id="form-error" class="error" hidden></p>
+    <div class="actions end">
+      <a class="btn" href="${back}">Cancel</a>
+      <button class="btn primary" type="submit">${p ? 'Save changes' : 'Pause plan'}</button>
+    </div>
+  </form>`;
+}
+
+async function onSavePause(form) {
+  const id = form.dataset.id || null;
+  const start = form.start_month.value;
+  const back = form.back_month.value;
+  const fields = {
+    member_id: form.dataset.member,
+    start_month: start,
+    // They pay again from the month they're back, so the pause ends the month before.
+    end_month: back ? shiftMonth(back, -1) : null,
+    note: form.note.value.trim()
+  };
+  const problem =
+    !/^\d{4}-\d{2}$/.test(start) ? 'Choose the month the pause starts.' :
+    back && back <= start ? 'The month they’re back has to be after the pause starts.' : '';
+  const errorEl = $('#form-error');
+  if (problem) {
+    errorEl.textContent = problem;
+    errorEl.hidden = false;
+    return;
+  }
+  const button = form.querySelector('button[type=submit]');
+  button.disabled = true;
+  try {
+    const saved = await DB.savePause(id, fields);
+    state.pauses = state.pauses.filter(p => p.id !== saved.id).concat(saved);
+    toast(id ? 'Pause updated' : 'Plan paused');
+    go(`#/m/${encodeURIComponent(fields.member_id)}`);
+  } catch (e) {
+    errorEl.textContent = e.message;
+    errorEl.hidden = false;
+    button.disabled = false;
+  }
+}
+
+// "They're back": they pay again from this month. A pause that only started this month is
+// simply removed, since no month ends up paused.
+async function onResume(el) {
+  const p = state.pauses.find(x => x.id === el.dataset.id);
+  const m = p && findMember(p.member_id);
+  if (!m || !confirm(`Mark ${fullName(m)} as back? Their plan is due again from ${fmtMonth(thisMonth())}.`)) return;
+  await changePause(el, p, shiftMonth(thisMonth(), -1), `${fullName(m)} is back`);
+}
+
+// A pause that hasn't started yet can just be removed.
+async function onCancelPause(el) {
+  const p = state.pauses.find(x => x.id === el.dataset.id);
+  if (!p || !confirm('Cancel this planned pause?')) return;
+  await changePause(el, p, null, 'Pause cancelled');
+}
+
+// End a pause at endMonth, or remove it when nothing would be left paused.
+async function changePause(el, p, endMonth, message) {
+  el.disabled = true;
+  try {
+    if (!endMonth || endMonth < p.start_month) {
+      await DB.deletePause(p.id);
+      state.pauses = state.pauses.filter(x => x.id !== p.id);
+    } else {
+      const saved = await DB.savePause(p.id, { end_month: endMonth });
+      state.pauses = state.pauses.map(x => (x.id === p.id ? saved : x));
+    }
+    toast(message);
+    render();
+  } catch (e) {
+    toast(e.message);
+    el.disabled = false;
+  }
 }
 
 // ---------- Record a payment ----------
@@ -298,12 +461,13 @@ async function onSavePayment(form) {
 Object.assign(SCREENS, {
   payments: { html: paymentsScreen, tab: 'payments' },
   pay: { html: payScreen },
+  pause: { html: pauseScreen },
   // The member form needs its plan fields shown or hidden once it's drawn.
   new: { ...SCREENS.new, after: syncPlanFields },
   edit: { ...SCREENS.edit, after: syncPlanFields }
 });
 
-FORMS['pay-form'] = onSavePayment;
+Object.assign(FORMS, { 'pay-form': onSavePayment, 'pause-form': onSavePause });
 
 Object.assign(ACTIONS, {
   'delete-payment': onDeletePayment,
@@ -317,7 +481,9 @@ Object.assign(ACTIONS, {
   },
   'pay-from-member'() {
     payReturn = { hash: '', month: '' };
-  }
+  },
+  resume: onResume,
+  'cancel-pause': onCancelPause
 });
 
 document.addEventListener('change', (e) => {

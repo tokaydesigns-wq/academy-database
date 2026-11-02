@@ -184,7 +184,7 @@ label.check input { width: 22px; height: 22px; min-height: 0; accent-color: var(
 
 /* Member list */
 .tools { display: flex; flex-direction: column; gap: 10px; }
-.chips { display: flex; gap: 8px; }
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
 .chip {
   border: 1px solid var(--line);
   background: var(--card);
@@ -426,3 +426,13 @@ li.row { padding: 0 4px 0 0; }
 .session-row input[type=time] { min-width: 0; padding: 6px 4px; font-size: 14px; }
 .session-row .to { font-size: 13px; color: var(--muted); }
 .session-row:not(.on) input[type=time], .session-row:not(.on) .to { visibility: hidden; }
+
+/* Member page: paused plan */
+.pause-banner {
+  display: flex; flex-direction: column; gap: 2px;
+  margin-bottom: 8px; padding: 10px 12px;
+  border-radius: 10px;
+  background: var(--accent-soft);
+  border: 1px solid var(--accent);
+}
+.pause-banner .actions { margin-top: 6px; }
