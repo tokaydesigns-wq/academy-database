@@ -31,10 +31,16 @@ The owner of this project isn't a developer. Write to them in plain language, sh
 ## How the app is put together
 
 `index.html` loads supabase-js from jsDelivr, then `config.js`, `js/core.js` (helpers, `esc()`),
-`js/data.js` (`DB`: demo storage or Supabase, same methods) and `js/ui.js` (hash router, screens,
-event handlers). Routes: `#/members`, `#/m/ID`, `#/new`, `#/edit/ID`, `#/account`.
+`js/data.js` (`DB`: demo storage or Supabase, same methods), `js/ui.js` (hash router, member
+screens, event handlers) and `js/classes.js` (class screens). Routes: `#/members`, `#/m/ID`,
+`#/new`, `#/edit/ID`, `#/join/ID`, `#/account`, `#/classes`, `#/c/ID`, `#/new-class`,
+`#/edit-class/ID`, `#/enroll/ID`. New screens register in `SCREENS`, forms in `FORMS`, and
+`data-act` clicks in `ACTIONS`.
 
-- **Demo mode** turns on when `config.js` is blank. It uses made-up members in localStorage.
+- **Demo mode** turns on when `config.js` is blank, or with `?demo` in the address. It uses
+  made-up data in localStorage, so test there instead of on the real database.
+- **Database changes go live separately.** After changing `schema.sql`, the owner must run it in
+  Supabase **before** the pull request is merged, or the live app can't load.
 - **Always `esc()` member data** before putting it in HTML.
 - Database changes go in `supabase/schema.sql`. Keep it safe to re-run, and give every table RLS
   using `public.is_staff()`. `SETUP.md` is the owner's guide for setting up Supabase.

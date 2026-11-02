@@ -72,3 +72,57 @@ $$;
 drop trigger if exists members_touch on public.members;
 create trigger members_touch before update on public.members
   for each row execute function public.touch_updated_at();
+
+-- Classes: the weekly timetable.
+create table if not exists public.classes (
+  id uuid primary key default gen_random_uuid(),
+  name text not null check (length(trim(name)) > 0),
+  days text[] not null default '{}',   -- e.g. {mon,wed}
+  start_time time,
+  end_time time,
+  instructor text not null default '',
+  capacity int check (capacity is null or capacity > 0),
+  notes text not null default '',
+  active boolean not null default true,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+alter table public.classes enable row level security;
+drop policy if exists "staff read classes" on public.classes;
+drop policy if exists "staff add classes" on public.classes;
+drop policy if exists "staff edit classes" on public.classes;
+create policy "staff read classes" on public.classes
+  for select to authenticated using (public.is_staff());
+create policy "staff add classes" on public.classes
+  for insert to authenticated with check (public.is_staff());
+create policy "staff edit classes" on public.classes
+  for update to authenticated using (public.is_staff()) with check (public.is_staff());
+-- No delete policy on purpose: classes that stop running are made inactive.
+
+drop trigger if exists classes_touch on public.classes;
+create trigger classes_touch before update on public.classes
+  for each row execute function public.touch_updated_at();
+
+-- Enrolments: which members are signed up for which classes.
+-- Taking someone out of a class deletes their row here; the member and class stay.
+create table if not exists public.enrollments (
+  member_id uuid not null references public.members(id) on delete cascade,
+  class_id uuid not null references public.classes(id) on delete cascade,
+  enrolled_on date not null default current_date,
+  primary key (member_id, class_id)
+);
+
+alter table public.enrollments enable row level security;
+drop policy if exists "staff read enrollments" on public.enrollments;
+drop policy if exists "staff add enrollments" on public.enrollments;
+drop policy if exists "staff remove enrollments" on public.enrollments;
+create policy "staff read enrollments" on public.enrollments
+  for select to authenticated using (public.is_staff());
+create policy "staff add enrollments" on public.enrollments
+  for insert to authenticated with check (public.is_staff());
+create policy "staff remove enrollments" on public.enrollments
+  for delete to authenticated using (public.is_staff());
+
+revoke all on public.classes from anon;
+revoke all on public.enrollments from anon;

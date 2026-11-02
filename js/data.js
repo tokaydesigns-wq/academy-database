@@ -11,7 +11,7 @@ const MEMBER_FIELDS = [
 const DEMO_KEY = 'academy.demo.v1';
 
 // Made-up people for trying the app. Never put real member details here.
-function demoSeed() {
+function demoMembers() {
   const m = (first, last, phone, dob, extra = {}) => ({
     id: crypto.randomUUID(), first_name: first, last_name: last,
     email: `${first}.${last}@example.com`.toLowerCase(), phone, date_of_birth: dob,
@@ -32,16 +32,56 @@ function demoSeed() {
   ];
 }
 
+// Made-up timetable, not the gym's real one.
+function demoClasses() {
+  const c = (name, days, start_time, end_time, instructor, capacity) => ({
+    id: crypto.randomUUID(), name, days, start_time, end_time, instructor, capacity,
+    notes: '', active: true, created_at: new Date().toISOString()
+  });
+  return [
+    c('Kids Class', ['mon', 'wed'], '16:30', '17:15', 'Coach Example', 12),
+    c('Adult Fundamentals', ['tue', 'thu'], '18:00', '19:00', 'Coach Sample', 20),
+    c('Teen Class', ['fri'], '17:00', '18:00', 'Coach Example', 3),
+    c('Open Mat', ['sat'], '10:00', '12:00', '', null)
+  ];
+}
+
+function demoSeed() {
+  const members = demoMembers();
+  const classes = demoClasses();
+  const enrol = (mi, ci) => ({ member_id: members[mi].id, class_id: classes[ci].id, enrolled_on: '2026-09-01' });
+  const enrollments = [enrol(1, 0), enrol(5, 0), enrol(0, 1), enrol(2, 1), enrol(3, 1), enrol(1, 2), enrol(5, 2)];
+  return { members, classes, enrollments };
+}
+
 function demoLoad() {
   try {
     const saved = JSON.parse(localStorage.getItem(DEMO_KEY));
-    if (saved && Array.isArray(saved.members)) return saved;
+    if (saved && Array.isArray(saved.members)) {
+      // Demo data saved before classes existed: add the made-up timetable.
+      if (!Array.isArray(saved.classes)) {
+        saved.classes = demoClasses();
+        saved.enrollments = [];
+      }
+      return saved;
+    }
   } catch (e) { /* storage blocked or broken: start fresh */ }
-  return { signedIn: false, members: demoSeed() };
+  return { signedIn: false, ...demoSeed() };
 }
 
 function demoSave(data) {
   try { localStorage.setItem(DEMO_KEY, JSON.stringify(data)); } catch (e) { /* not saved */ }
+}
+
+// Insert or update a row in one of the demo lists.
+function demoUpsert(list, id, fields) {
+  let row = list.find(r => r.id === id);
+  if (row) Object.assign(row, fields, { updated_at: new Date().toISOString() });
+  else {
+    row = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...fields };
+    list.push(row);
+  }
+  return { ...row };
 }
 
 const demoDB = {
@@ -65,18 +105,35 @@ const demoDB = {
     return this.data.members.map(m => ({ ...m }));
   },
   async saveMember(id, fields) {
-    let row = this.data.members.find(m => m.id === id);
-    if (row) Object.assign(row, fields, { updated_at: new Date().toISOString() });
-    else {
-      row = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...fields };
-      this.data.members.push(row);
-    }
+    const row = demoUpsert(this.data.members, id, fields);
+    demoSave(this.data);
+    return row;
+  },
+  async listClasses() {
+    return this.data.classes.map(c => ({ ...c }));
+  },
+  async saveClass(id, fields) {
+    const row = demoUpsert(this.data.classes, id, fields);
+    demoSave(this.data);
+    return row;
+  },
+  async listEnrollments() {
+    return this.data.enrollments.map(e => ({ ...e }));
+  },
+  async enroll(member_id, class_id) {
+    const row = { member_id, class_id, enrolled_on: new Date().toISOString().slice(0, 10) };
+    this.data.enrollments.push(row);
     demoSave(this.data);
     return { ...row };
   },
-  // Put the made-up members back, for testing.
+  async unenroll(member_id, class_id) {
+    this.data.enrollments = this.data.enrollments
+      .filter(e => !(e.member_id === member_id && e.class_id === class_id));
+    demoSave(this.data);
+  },
+  // Put the made-up members and classes back, for testing.
   reset() {
-    this.data = { signedIn: true, members: demoSeed() };
+    this.data = { signedIn: true, ...demoSeed() };
     demoSave(this.data);
   }
 };
@@ -91,6 +148,10 @@ function supabaseDB() {
     const msg = error.message || '';
     if (/invalid login/i.test(msg)) throw new Error('That email and password don’t match.');
     if (/fetch|network/i.test(msg)) throw new Error('Can’t reach the database. Check the internet connection.');
+    if (error.code === '23505') throw new Error('They’re already in that class.');
+    if (error.code === '42P01' || /does not exist|schema cache/i.test(msg)) {
+      throw new Error('The database needs updating. Run supabase/schema.sql again in Supabase.');
+    }
     throw new Error(msg || 'Something went wrong.');
   };
 
@@ -107,6 +168,23 @@ function supabaseDB() {
     return { email: session.user.email };
   }
 
+  async function list(table, order) {
+    let query = sb.from(table).select('*');
+    if (order) query = query.order(order);
+    const { data, error } = await query;
+    if (error) fail(error);
+    return data;
+  }
+
+  async function save(table, id, fields) {
+    const query = id
+      ? sb.from(table).update(fields).eq('id', id)
+      : sb.from(table).insert(fields);
+    const { data, error } = await query.select().single();
+    if (error) fail(error);
+    return data;
+  }
+
   return {
     currentUser: staffUser,
     async signIn(email, password) {
@@ -121,18 +199,20 @@ function supabaseDB() {
       const { error } = await sb.auth.updateUser({ password });
       if (error) fail(error);
     },
-    async listMembers() {
-      const { data, error } = await sb.from('members').select('*').order('first_name');
+    listMembers: () => list('members', 'first_name'),
+    saveMember: (id, fields) => save('members', id, fields),
+    listClasses: () => list('classes', 'name'),
+    saveClass: (id, fields) => save('classes', id, fields),
+    listEnrollments: () => list('enrollments'),
+    async enroll(member_id, class_id) {
+      const { data, error } = await sb.from('enrollments').insert({ member_id, class_id }).select().single();
       if (error) fail(error);
       return data;
     },
-    async saveMember(id, fields) {
-      const query = id
-        ? sb.from('members').update(fields).eq('id', id)
-        : sb.from('members').insert(fields);
-      const { data, error } = await query.select().single();
+    async unenroll(member_id, class_id) {
+      const { error } = await sb.from('enrollments').delete()
+        .eq('member_id', member_id).eq('class_id', class_id);
       if (error) fail(error);
-      return data;
     }
   };
 }
