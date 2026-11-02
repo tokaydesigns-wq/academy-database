@@ -359,3 +359,8 @@ li.row { padding: 0 4px 0 0; }
   transition: opacity .2s, transform .2s;
 }
 #toast.show { opacity: 1; transform: translate(-50%, 0); }
+
+/* Backup list on the account screen */
+.backup-list { margin: 0; }
+.backup-list .pay-row { padding: 8px 0; }
+.backup-list .small-btn { margin: 0; flex: none; }
