@@ -167,3 +167,9 @@ create policy "staff remove payments" on public.payments
   for delete to authenticated using (public.is_staff());
 
 revoke all on public.payments from anon;
+
+-- Plans staff can pick directly (added 2026-11-02): kickboxing only, muay_thai, jiu_jitsu,
+-- or all (Muay Thai + Jiu Jitsu, Kickboxing included in every one).
+alter table public.members drop constraint if exists members_plan_check;
+alter table public.members add constraint members_plan_check
+  check (plan in ('auto', 'kickboxing', 'muay_thai', 'jiu_jitsu', 'all', 'family', 'covered', 'custom'));

@@ -1,8 +1,36 @@
 // Payments: what each member owes per month, the Payments tab (#/payments), and recording a
 // payment (#/pay/MEMBER_ID). Only records money received; never card or bank details.
 
+// Plans staff can pick directly, and the premium programs each one includes.
+// Kickboxing is included in all of them.
+const PROGRAM_PLANS = {
+  kickboxing: [],
+  muay_thai: ['muay_thai'],
+  jiu_jitsu: ['jiu_jitsu'],
+  all: ['muay_thai', 'jiu_jitsu']
+};
+
+// Price and name for a set of premium programs: Muay Thai or Jiu Jitsu include Kickboxing,
+// and each extra course is +$10. No premium programs means Kickboxing only.
+function programPrice(premium) {
+  if (!premium.length) return { cents: PRICES.kickboxing, label: 'Kickboxing only' };
+  return { cents: PRICES.premium + PRICES.extraCourse * (premium.length - 1),
+    label: premium.length === PREMIUM.length ? 'All 3 (Muay Thai + Jiu Jitsu + Kickboxing)'
+      : premium.map(programLabel).join(' + ') + ' (Kickboxing included)' };
+}
+
+// Premium programs a member's classes use that their chosen plan doesn't include, e.g. someone
+// on "Kickboxing only" who's in a Muay Thai class. Empty when everything matches.
+function planMismatch(m) {
+  const included = PROGRAM_PLANS[m.plan];
+  if (!included) return [];
+  const programs = new Set(classesOf(m.id).map(c => c.program));
+  return PREMIUM.filter(p => programs.has(p) && !included.includes(p));
+}
+
 // What a member owes each month and why. Prices come from PRICES in core.js.
 function planFor(m) {
+  if (PROGRAM_PLANS[m.plan]) return programPrice(PROGRAM_PLANS[m.plan]);
   if (m.plan === 'covered') {
     const payer = findMember(m.paid_by);
     return { cents: 0, label: `On ${payer ? fullName(payer) : 'a family member'}’s family plan` };
@@ -17,11 +45,7 @@ function planFor(m) {
   // Worked out from their classes: Muay Thai and Jiu Jitsu include Kickboxing, +$10 per extra course.
   const programs = new Set(classesOf(m.id).map(c => c.program).filter(Boolean));
   const premium = PREMIUM.filter(p => programs.has(p));
-  if (premium.length) {
-    return { cents: PRICES.premium + PRICES.extraCourse * (premium.length - 1),
-      label: premium.map(programLabel).join(' + ') + ' (Kickboxing included)' };
-  }
-  if (programs.has('kickboxing')) return { cents: PRICES.kickboxing, label: 'Kickboxing' };
+  if (premium.length || programs.has('kickboxing')) return programPrice(premium);
   return { cents: 0, label: 'No paid classes yet' };
 }
 
@@ -57,7 +81,10 @@ function memberPaymentsCard(m) {
   const month = thisMonth();
   const s = statusFor(m, month);
   const recent = paymentsOf(m.id).slice(0, 6);
+  const extra = planMismatch(m);
   return `<div class="card">
+    ${extra.length ? `<p class="mismatch">In a ${esc(extra.map(programLabel).join(' and '))} class, but their plan
+      doesn’t include it. Check their plan or their classes.</p>` : ''}
     <dl>
       ${field('Plan', `${esc(plan.label)}${plan.cents ? ` · <strong>${fmtMoney(plan.cents)}/mo</strong>` : ''}`)}
       ${field(esc(fmtMonth(month)), `<span class="${s.owes ? 'owes' : 'paid'}">${esc(statusText(s))}</span>`)}
@@ -100,10 +127,14 @@ function planFieldsHtml(m, id) {
   return `<div class="card stack">
     <label>Plan
       <select name="plan" id="plan-select">
-        ${opt('auto', 'From their classes')}
-        ${opt('family', `Family plan (${fmtMoney(PRICES.family)}/mo, pays for the family)`)}
+        ${Object.entries(PROGRAM_PLANS).map(([key, premium]) => {
+          const p = programPrice(premium);
+          return opt(key, `${p.label} · ${fmtMoney(p.cents)}`);
+        }).join('')}
+        ${opt('family', `Family plan · ${fmtMoney(PRICES.family)} (pays for the family)`)}
         ${opt('covered', 'On someone else’s family plan')}
         ${opt('custom', 'Custom price')}
+        ${opt('auto', 'Work it out from their classes')}
       </select>
     </label>
     <label data-plan="covered">Family plan paid by
@@ -116,8 +147,8 @@ function planFieldsHtml(m, id) {
     <label data-plan="custom">Monthly price ($)
       <input name="custom_price" type="number" min="0" step="0.01" inputmode="decimal" value="${esc(m.custom_price ?? '')}">
     </label>
-    <p class="muted small" data-plan="auto">Kickboxing ${fmtMoney(PRICES.kickboxing)}. Muay Thai or Jiu Jitsu
-      ${fmtMoney(PRICES.premium)} (Kickboxing included), +${fmtMoney(PRICES.extraCourse)} for each extra course.</p>
+    <p class="muted small" data-plan="auto">The price follows the classes they’re in, using the same
+      prices as the plans above.</p>
   </div>`;
 }
 
