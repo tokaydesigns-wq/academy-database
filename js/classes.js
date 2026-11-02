@@ -5,15 +5,17 @@ function findClass(id) {
   return state.classes.find(c => c.id === id);
 }
 
-// Monday-first by first day, then by start time. Classes with no days go last.
+// Monday-first by first session, then by its start time. Classes with no days go last.
 function sortClasses(list) {
-  const dayIndex = c => {
-    const i = DAYS.findIndex(([key]) => (c.days || []).includes(key));
-    return i < 0 ? 99 : i;
+  const first = c => {
+    const s = sessionsOf(c)[0];
+    return s ? [DAYS.findIndex(([key]) => key === s.day), s.start] : [99, ''];
   };
-  return [...list].sort((a, b) =>
-    dayIndex(a) - dayIndex(b) || (a.start_time || '').localeCompare(b.start_time || '') ||
-    a.name.localeCompare(b.name));
+  return [...list].sort((a, b) => {
+    const [da, ta] = first(a);
+    const [db, tb] = first(b);
+    return da - db || ta.localeCompare(tb) || a.name.localeCompare(b.name);
+  });
 }
 
 // Active members in a class. Members who've left stay enrolled but aren't shown or counted.
@@ -175,7 +177,8 @@ function classFormScreen(id) {
   const c = id ? findClass(id) : { active: true, days: [] };
   if (!c) return `${topBar('Edit class', '#/classes')}<p class="empty">This class wasn’t found.</p>`;
   const back = id ? `#/c/${encodeURIComponent(id)}` : '#/classes';
-  const days = c.days || [];
+  const sessions = sessionsOf(c);
+  const sessionFor = key => sessions.find(s => s.day === key);
   return `${topBar(id ? 'Edit class' : 'New class', back)}
   <form id="class-form" class="stack" data-id="${esc(id || '')}" novalidate>
     <div class="card stack">
@@ -186,16 +189,19 @@ function classFormScreen(id) {
           <option value="" ${id && !c.program ? 'selected' : ''}>No charge (e.g. open mat)</option>
         </select>
       </label>
-      <fieldset class="days">
-        <legend>Days</legend>
-        ${DAYS.map(([key, label]) => `
-          <label class="day"><input type="checkbox" name="days" value="${key}" ${days.includes(key) ? 'checked' : ''}>
-          <span>${label}</span></label>`).join('')}
+      <fieldset class="sessions">
+        <legend>Days and times <span class="muted small">(tap a day, then set its times)</span></legend>
+        ${DAYS.map(([key, label]) => {
+          const s = sessionFor(key);
+          return `<div class="session-row ${s ? 'on' : ''}">
+            <label class="day"><input type="checkbox" name="days" value="${key}" ${s ? 'checked' : ''}>
+              <span>${label}</span></label>
+            <input name="start_${key}" type="time" value="${esc(s ? s.start : '')}" aria-label="${label} start time">
+            <span class="to" aria-hidden="true">–</span>
+            <input name="end_${key}" type="time" value="${esc(s ? s.end : '')}" aria-label="${label} end time">
+          </div>`;
+        }).join('')}
       </fieldset>
-      <div class="two">
-        <label>Starts<input name="start_time" type="time" value="${esc((c.start_time || '').slice(0, 5))}"></label>
-        <label>Ends<input name="end_time" type="time" value="${esc((c.end_time || '').slice(0, 5))}"></label>
-      </div>
       <div class="two">
         <label>Instructor<input name="instructor" value="${esc(c.instructor)}" autocomplete="off"></label>
         <label>Max people<input name="capacity" type="number" min="1" inputmode="numeric"
@@ -254,24 +260,31 @@ async function onDeleteClass(el) {
 async function onSaveClass(form) {
   const id = form.dataset.id || null;
   const capacity = form.capacity.value.trim();
+  const sessions = [...form.querySelectorAll('input[name=days]:checked')].map(i => ({
+    day: i.value,
+    start: form[`start_${i.value}`].value,
+    end: form[`end_${i.value}`].value
+  }));
   const fields = {
     name: form.querySelector('[name=name]').value.trim(),   // form.name is the form's own name
     program: form.program.value || null,
-    days: [...form.querySelectorAll('input[name=days]:checked')].map(i => i.value),
-    start_time: form.start_time.value || null,
-    end_time: form.end_time.value || null,
+    sessions,
+    // Kept in step with the first session, for older parts of the app and backups.
+    days: sessions.map(s => s.day),
+    start_time: sessions[0]?.start || null,
+    end_time: sessions[0]?.end || null,
     instructor: form.instructor.value.trim(),
     capacity: capacity ? Number(capacity) : null,
     notes: form.notes.value.trim(),
     active: id ? form.active.checked : true
   };
 
+  const backwards = sessions.find(s => s.start && s.end && s.end <= s.start);
   const problem =
     !fields.name ? 'Add a class name.' :
     fields.capacity !== null && !(Number.isInteger(fields.capacity) && fields.capacity > 0)
       ? 'Max people should be a whole number, or leave it empty for no limit.' :
-    fields.start_time && fields.end_time && fields.end_time <= fields.start_time
-      ? 'The end time is before the start time.' : '';
+    backwards ? `On ${fmtDays([backwards.day])}, the end time is before the start time.` : '';
   const errorEl = $('#form-error');
   if (problem) {
     errorEl.textContent = problem;
@@ -307,6 +320,23 @@ Object.assign(SCREENS, {
 
 FORMS['class-form'] = onSaveClass;
 Object.assign(ACTIONS, { enroll: onEnroll, unenroll: onUnenroll, 'delete-class': onDeleteClass });
+
+// Ticking a day shows its times. To save typing, a newly ticked day with no times copies
+// them from the nearest ticked day above it (or below, if it's the first).
+document.addEventListener('change', (e) => {
+  if (e.target.name !== 'days' || !e.target.closest('#class-form')) return;
+  const row = e.target.closest('.session-row');
+  row.classList.toggle('on', e.target.checked);
+  const [start, end] = row.querySelectorAll('input[type=time]');
+  if (!e.target.checked || start.value || end.value) return;
+  const rows = [...document.querySelectorAll('.session-row.on')].filter(r => r !== row);
+  const before = rows.filter(r => r.compareDocumentPosition(row) & Node.DOCUMENT_POSITION_FOLLOWING);
+  const from = before.pop() || rows[0];
+  if (!from) return;
+  const [fs, fe] = from.querySelectorAll('input[type=time]');
+  start.value = fs.value;
+  end.value = fe.value;
+});
 
 document.addEventListener('input', (e) => {
   if (e.target.id !== 'pick-search') return;

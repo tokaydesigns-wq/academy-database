@@ -47,11 +47,9 @@ const BACKUPS = {
     label: 'Classes',
     about: 'The timetable and how many are signed up',
     build: () => toCsv(
-      ['Class', 'Program', 'Days', 'Starts', 'Ends', 'Instructor', 'Max people', 'Signed up',
-        'Running', 'Notes'],
+      ['Class', 'Program', 'Days and times', 'Instructor', 'Max people', 'Signed up', 'Running', 'Notes'],
       sortClasses(state.classes).map(c => [c.name, programLabel(c.program) || 'No charge',
-        fmtDays(c.days), (c.start_time || '').slice(0, 5), (c.end_time || '').slice(0, 5),
-        c.instructor, c.capacity || '', rosterOf(c.id).length, yesNo(c.active), c.notes]))
+        fmtSchedule(c), c.instructor, c.capacity || '', rosterOf(c.id).length, yesNo(c.active), c.notes]))
   },
   signups: {
     label: 'Class sign-ups',

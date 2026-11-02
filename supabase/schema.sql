@@ -230,3 +230,9 @@ create policy "staff delete empty classes" on public.classes
     public.is_staff()
     and not exists (select 1 from public.enrollments e where e.class_id = classes.id)
   );
+
+-- Different times on different days (added 2026-11-02). Each session is
+-- {"day": "mon", "start": "18:00", "end": "19:00"}. days/start_time/end_time are still
+-- filled in (from the first session) so older code and backups keep working. Classes saved
+-- before this have an empty list, and the app reads their days and times instead.
+alter table public.classes add column if not exists sessions jsonb not null default '[]'::jsonb;

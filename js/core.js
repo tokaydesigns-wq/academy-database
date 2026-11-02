@@ -78,11 +78,32 @@ function fmtTime(t) {
   return new Date(2000, 0, 1, h, m).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
 }
 
-// "Mon, Wed · 4:30 PM–5:15 PM"
+// A class's sessions, Monday first: [{ day: 'mon', start: '18:00', end: '19:00' }, ...].
+// Classes saved before per-day times existed only have days + one start/end, so build the
+// sessions from those.
+function sessionsOf(c) {
+  const list = c.sessions && c.sessions.length ? c.sessions
+    : (c.days || []).map(day => ({ day, start: c.start_time || '', end: c.end_time || '' }));
+  const order = key => DAYS.findIndex(([k]) => k === key);
+  return list
+    .map(s => ({ day: s.day, start: (s.start || '').slice(0, 5), end: (s.end || '').slice(0, 5) }))
+    .sort((a, b) => order(a.day) - order(b.day));
+}
+
+function fmtTimeRange(start, end) {
+  return start && end ? `${fmtTime(start)}–${fmtTime(end)}` : fmtTime(start);
+}
+
+// "Mon, Wed · 6:00 PM–7:00 PM", or with different times on different days:
+// "Mon, Wed · 6:00 PM–7:00 PM; Sat · 10:00 AM–11:00 AM"
 function fmtSchedule(c) {
-  const time = c.start_time && c.end_time ? `${fmtTime(c.start_time)}–${fmtTime(c.end_time)}`
-    : fmtTime(c.start_time);
-  return [fmtDays(c.days), time].filter(Boolean).join(' · ') || 'No set time';
+  const groups = [];
+  for (const s of sessionsOf(c)) {
+    const time = fmtTimeRange(s.start, s.end);
+    const same = groups.find(g => g.time === time);
+    if (same) same.days.push(s.day); else groups.push({ time, days: [s.day] });
+  }
+  return groups.map(g => [fmtDays(g.days), g.time].filter(Boolean).join(' · ')).join('; ') || 'No set time';
 }
 
 // ---------- Money and months ----------

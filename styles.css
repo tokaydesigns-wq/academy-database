@@ -417,3 +417,12 @@ li.row { padding: 0 4px 0 0; }
 
 /* Delete buttons */
 .btn.danger { color: var(--error); border-color: var(--error); background: var(--card); align-self: flex-start; }
+
+/* Class form: one row per day with its own start and end time */
+.sessions { border: 0; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+.sessions legend { font-size: 14px; font-weight: 600; padding: 0; margin-bottom: 6px; }
+.session-row { display: grid; grid-template-columns: 50px 1fr auto 1fr; align-items: center; gap: 4px; min-width: 0; }
+.session-row .day span { width: 50px; }
+.session-row input[type=time] { min-width: 0; padding: 6px 4px; font-size: 14px; }
+.session-row .to { font-size: 13px; color: var(--muted); }
+.session-row:not(.on) input[type=time], .session-row:not(.on) .to { visibility: hidden; }
