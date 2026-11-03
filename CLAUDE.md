@@ -76,6 +76,13 @@ plan has no restorable backups, so these are the gym's safety copy). Routes: `#/
   using `public.is_staff()`. `SETUP.md` is the owner's guide for setting up Supabase.
 - Test locally: `python -m http.server 8130`, then open http://localhost:8130.
 
+## Releasing
+
+- **Bump `?v=` on every file link in `index.html`** in each pull request that changes CSS or JS
+  (all to the same new number). GitHub Pages lets phones keep files for 10 minutes, and without
+  this a phone can mix old and new files and break.
+- If `supabase/schema.sql` changed, the new block must be run in Supabase **before** merging.
+
 ## Working rules
 
 - Work on a branch and open a pull request for the owner to review once there's a remote.

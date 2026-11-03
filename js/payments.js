@@ -59,10 +59,22 @@ function paymentsOf(memberId) {
     .sort((a, b) => b.paid_on.localeCompare(a.paid_on) || b.created_at.localeCompare(a.created_at));
 }
 
+// "2026-11-02T18:00:00Z" -> "2026-11", in local time.
+function monthOf(iso) {
+  const d = iso ? new Date(iso) : new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+}
+
 // The month they were added to the app ("2026-11"). Nothing is due before it.
 function joinedMonth(m) {
-  const d = m.created_at ? new Date(m.created_at) : new Date();
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  return monthOf(m.created_at);
+}
+
+// For members who've left: the first month they're no longer billed. Members marked as left
+// before this was tracked use the month after they were last edited.
+function leftMonth(m) {
+  if (m.active) return null;
+  return m.inactive_since || shiftMonth(monthOf(m.updated_at || m.created_at), 1);
 }
 
 // The pause covering this month, if any. A pause with no end_month runs until they're resumed.
@@ -79,13 +91,16 @@ function currentPause(m) {
     .sort((a, b) => a.start_month.localeCompare(b.start_month))[0];
 }
 
-// { due, paid, owes, why } in cents for one month. Nothing is due before they joined or
-// while their plan is paused. Past months use their current plan's price.
+// { due, paid, owes, why } in cents for one month. Nothing is due before they joined, while
+// their plan is paused, or after they left. Past months use their current plan's price.
 function statusFor(m, month) {
   const paid = state.payments
     .filter(p => p.member_id === m.id && p.covers_month === month)
     .reduce((sum, p) => sum + toCents(p.amount), 0);
-  const why = month < joinedMonth(m) ? 'before' : pauseFor(m, month) ? 'paused' : '';
+  const left = leftMonth(m);
+  const why = month < joinedMonth(m) ? 'before'
+    : left && month >= left ? 'left'
+    : pauseFor(m, month) ? 'paused' : '';
   const due = why ? 0 : planFor(m).cents;
   return { due, paid, owes: Math.max(due - paid, 0), why };
 }
@@ -103,6 +118,7 @@ function unpaidMonths(m) {
 function statusText(s) {
   if (s.why === 'paused') return 'Plan paused, nothing due';
   if (s.why === 'before') return 'Not added yet';
+  if (s.why === 'left') return 'Left the gym, not billed';
   if (!s.due) return s.paid ? `Paid ${fmtMoney(s.paid)}` : 'Nothing due';
   if (!s.owes) return `Paid ✓`;
   return s.paid ? `Owes ${fmtMoney(s.owes)} (paid ${fmtMoney(s.paid)})` : `Owes ${fmtMoney(s.owes)}`;
@@ -129,6 +145,7 @@ function memberPaymentsCard(m) {
         ? field('Unpaid months', `<span class="owes">${fmtMoney(total)} total</span><br>
           <span class="small">${behind.map(b => `${esc(fmtMonth(b.month))}: ${fmtMoney(b.owes)}`).join('<br>')}</span>`) : ''}
       ${field('Billing since', esc(fmtMonth(joinedMonth(m))))}
+      ${m.active ? '' : field('Left', `Not billed from ${esc(fmtMonth(leftMonth(m)))}`)}
     </dl>
     ${recent.length ? `<ul class="plain pay-list">${recent.map(p => `
       <li class="pay-row">

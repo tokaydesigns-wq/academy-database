@@ -264,3 +264,9 @@ create policy "staff edit pauses" on public.pauses
 create policy "staff remove pauses" on public.pauses
   for delete to authenticated using (public.is_staff());
 revoke all on public.pauses from anon;
+
+-- When a member leaves (added 2026-11-03): the first month they're no longer billed, e.g.
+-- '2026-12'. The app sets it when "Active member" is unticked and clears it if they come
+-- back. Anything owed before they left still counts.
+alter table public.members add column if not exists inactive_since text
+  check (inactive_since is null or inactive_since ~ '^\d{4}-\d{2}$');
