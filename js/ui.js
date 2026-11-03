@@ -37,10 +37,7 @@ async function render() {
   if (!state.loaded) {
     app.innerHTML = demoBanner() + '<p class="empty">Loading…</p>';
     try {
-      [state.members, state.classes, state.enrollments, state.payments, state.waivers, state.pauses] =
-        await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments(),
-          DB.listWaivers(), DB.listPauses()]);
-      state.loaded = true;
+      await loadAll();
     } catch (e) {
       app.innerHTML = demoBanner() + `<p class="empty">${esc(e.message)}</p>
         <p class="center"><button class="btn" data-act="retry">Try again</button></p>`;
@@ -53,6 +50,44 @@ async function render() {
   if (screen.after) screen.after(r.id);
   window.scrollTo(0, 0);
 }
+
+// Everything the app shows, loaded in one go. Each device keeps its own copy, so other staff
+// members' changes appear after a refresh.
+let lastLoad = 0;
+async function loadAll() {
+  [state.members, state.classes, state.enrollments, state.payments, state.waivers, state.pauses] =
+    await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments(),
+      DB.listWaivers(), DB.listPauses()]);
+  state.loaded = true;
+  lastLoad = Date.now();
+}
+
+// Screens where redrawing would throw away what someone is typing or signing.
+const TYPING_SCREENS = ['new', 'edit', 'pay', 'sign', 'paper', 'pause', 'new-class', 'edit-class',
+  'enroll', 'join', 'account'];
+
+// Fetch the latest data. Automatic refreshes leave forms alone and keep the scroll position;
+// the ↻ button always redraws.
+async function refresh(manual) {
+  if (!state.user || !state.loaded) return;
+  try {
+    await loadAll();
+  } catch (e) {
+    if (manual) toast(e.message);
+    return;
+  }
+  if (!manual && TYPING_SCREENS.includes(route().name)) return;
+  const y = window.scrollY;
+  render();
+  window.scrollTo(0, y);
+  if (manual) toast('Up to date');
+}
+
+// Coming back to the app (switching tabs or unlocking the phone) fetches anything other staff
+// changed, at most every 30 seconds.
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible' && Date.now() - lastLoad > 30000) refresh(false);
+});
 
 // Each screen: html(id) builds it, after(id) fills in live parts, tab shows the bottom bar.
 const SCREENS = {
@@ -76,7 +111,8 @@ function demoBanner() {
 
 function topBar(title, back) {
   return `<header class="top">
-    ${back ? `<a class="icon-btn" href="${back}" aria-label="Back">‹</a>` : '<span class="brand-dot"></span>'}
+    ${back ? `<a class="icon-btn" href="${back}" aria-label="Back">‹</a>`
+           : '<button class="icon-btn refresh" data-act="refresh" aria-label="Refresh">↻</button>'}
     <h1>${esc(title)}</h1>
     ${back ? '<span class="icon-btn" aria-hidden="true"></span>'
            : '<a class="icon-btn" href="#/account" aria-label="Your account">☰</a>'}
@@ -182,8 +218,10 @@ function renderList() {
         : pauseFor(m, thisMonth()) ? '<span class="tag">Paused</span>'
         : waiverStatus(m).ok ? '' : '<span class="tag full">No waiver</span>'}
     </a></li>`).join('')
-    : `<li class="empty">${state.filter === 'nowaiver' && !q ? 'Every active member has a waiver.'
-      : state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.'}</li>`;
+    : `<li class="empty">${q ? 'No one matches that search.'
+      : { nowaiver: 'Every active member has a waiver.', paused: 'No one’s plan is paused right now.',
+          inactive: 'No one has left.' }[state.filter]
+        || (state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.')}</li>`;
 }
 
 // ---------- One member ----------
@@ -384,6 +422,11 @@ async function onSaveMember(form) {
   fields.date_of_birth = fields.date_of_birth || null;
   fields.sex = fields.sex || null;
   fields.active = id ? form.active.checked : true;
+  // When they leave, this month still counts and billing stops from next month. Coming
+  // back clears it. A member who was already inactive keeps their original month.
+  const before = id ? findMember(id) : null;
+  fields.inactive_since = fields.active ? null
+    : before && !before.active ? leftMonth(before) : shiftMonth(thisMonth(), 1);
   const plan = readPlanFields(form);
   Object.assign(fields, plan.fields);
 
@@ -481,6 +524,7 @@ const ACTIONS = {
     go('#/members');
   },
   join: onJoin,
+  refresh: () => refresh(true),
   retry: render
 };
 
