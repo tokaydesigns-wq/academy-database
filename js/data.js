@@ -265,12 +265,19 @@ function supabaseDB() {
     return { email: session.user.email };
   }
 
-  async function list(table, order) {
-    let query = sb.from(table).select('*');
-    if (order) query = query.order(order);
-    const { data, error } = await query;
-    if (error) fail(error);
-    return data;
+  // Supabase sends at most 1,000 rows per request, so fetch in pages of 1,000 until a page
+  // comes back short. Sorting by a unique key as well keeps the pages from overlapping.
+  const PAGE = 1000;
+  async function list(table, { order, columns = '*', keys = ['id'] } = {}) {
+    const rows = [];
+    for (let from = 0; ; from += PAGE) {
+      let query = sb.from(table).select(columns);
+      for (const col of [order, ...keys].filter(Boolean)) query = query.order(col);
+      const { data, error } = await query.range(from, from + PAGE - 1);
+      if (error) fail(error);
+      rows.push(...data);
+      if (data.length < PAGE) return rows;
+    }
   }
 
   async function save(table, id, fields) {
@@ -296,9 +303,9 @@ function supabaseDB() {
       const { error } = await sb.auth.updateUser({ password });
       if (error) fail(error);
     },
-    listMembers: () => list('members', 'first_name'),
+    listMembers: () => list('members', { order: 'first_name' }),
     saveMember: (id, fields) => save('members', id, fields),
-    listClasses: () => list('classes', 'name'),
+    listClasses: () => list('classes', { order: 'name' }),
     saveClass: (id, fields) => save('classes', id, fields),
     // The database only allows deleting a class nobody is signed up for. If it refuses,
     // nothing comes back, so check that a row was actually deleted.
@@ -307,7 +314,7 @@ function supabaseDB() {
       if (error) fail(error);
       if (!data.length) throw new Error('This class couldn’t be deleted. Take everyone out of it first.');
     },
-    listEnrollments: () => list('enrollments'),
+    listEnrollments: () => list('enrollments', { keys: ['member_id', 'class_id'] }),
     async enroll(member_id, class_id) {
       const { data, error } = await sb.from('enrollments').insert({ member_id, class_id }).select().single();
       if (error) fail(error);
@@ -318,7 +325,7 @@ function supabaseDB() {
         .eq('member_id', member_id).eq('class_id', class_id);
       if (error) fail(error);
     },
-    listPayments: () => list('payments', 'paid_on'),
+    listPayments: () => list('payments', { order: 'paid_on' }),
     async addPayment(fields) {
       const { data, error } = await sb.from('payments').insert(fields).select().single();
       if (error) fail(error);
@@ -328,11 +335,7 @@ function supabaseDB() {
       const { error } = await sb.from('payments').delete().eq('id', id);
       if (error) fail(error);
     },
-    async listWaivers() {
-      const { data, error } = await sb.from('waivers').select(WAIVER_LIST_COLUMNS);
-      if (error) fail(error);
-      return data;
-    },
+    listWaivers: () => list('waivers', { columns: WAIVER_LIST_COLUMNS }),
     async getWaiver(id) {
       const { data, error } = await sb.from('waivers').select('*').eq('id', id).maybeSingle();
       if (error) fail(error);
