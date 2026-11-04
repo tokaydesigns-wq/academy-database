@@ -275,3 +275,84 @@ alter table public.members add column if not exists inactive_since text
 -- on the gym's iPad. review_note tells staff what to check (e.g. the program they asked for);
 -- staff clear it once they've confirmed the plan.
 alter table public.members add column if not exists review_note text not null default '';
+
+-- Payment reminders (added 2026-11-04). A Google Apps Script in the gym's Gmail
+-- (reminders/Reminders.gs) runs on the 15th, asks members_owing() who hasn't paid for the
+-- month, emails them, and logs each email in reminders so nobody is emailed twice.
+
+-- Who still owes for a month, using the same rules as the app (planFor/statusFor in
+-- js/payments.js): nothing before they joined, after they left, or while paused; prices from
+-- their plan, or from their classes' programs when the plan is "auto". Keep both in step.
+-- "security invoker" means the normal staff-only rules apply to whoever calls it.
+create or replace function public.members_owing(p_month text)
+returns table (member_id uuid, first_name text, last_name text, email text,
+               due numeric, paid numeric, owes numeric)
+language sql stable security invoker set search_path = public as $$
+  with m as (
+    select mem.*,
+      to_char(mem.created_at at time zone 'America/Chicago', 'YYYY-MM') as joined,
+      case when mem.active then null
+           else coalesce(mem.inactive_since, to_char(date_trunc('month',
+             coalesce(mem.updated_at, mem.created_at) at time zone 'America/Chicago') + interval '1 month', 'YYYY-MM'))
+      end as left_month
+    from members mem
+  ),
+  progs as (
+    select e.member_id,
+      count(distinct c.program) filter (where c.program in ('muay_thai', 'jiu_jitsu')) as premium,
+      bool_or(c.program = 'kickboxing') as kick
+    from enrollments e join classes c on c.id = e.class_id and c.active
+    group by e.member_id
+  ),
+  priced as (
+    select m.*, case m.plan
+        when 'covered' then 0
+        when 'family' then 150.00
+        when 'custom' then coalesce(m.custom_price, 0)
+        when 'kickboxing' then 39.99
+        when 'muay_thai' then 59.99
+        when 'jiu_jitsu' then 59.99
+        when 'all' then 69.99
+        else case when coalesce(p.premium, 0) > 0 then 59.99 + 10.00 * (p.premium - 1)
+                  when coalesce(p.kick, false) then 39.99 else 0 end
+      end as price
+    from m left join progs p on p.member_id = m.id
+  ),
+  status as (
+    select pr.*,
+      case when p_month < pr.joined
+             or (pr.left_month is not null and p_month >= pr.left_month)
+             or exists (select 1 from pauses pa where pa.member_id = pr.id and pa.start_month <= p_month
+                        and (pa.end_month is null or p_month <= pa.end_month))
+           then 0 else pr.price end as due_amt,
+      coalesce((select sum(py.amount) from payments py
+                where py.member_id = pr.id and py.covers_month = p_month), 0) as paid_amt
+    from priced pr
+  )
+  select id, first_name, last_name, email, due_amt, paid_amt, due_amt - paid_amt
+  from status
+  where due_amt - paid_amt > 0
+  order by first_name, last_name;
+$$;
+revoke execute on function public.members_owing(text) from public, anon;
+grant execute on function public.members_owing(text) to authenticated;
+
+-- One row per reminder email sent.
+create table if not exists public.reminders (
+  id uuid primary key default gen_random_uuid(),
+  member_id uuid not null references public.members(id) on delete cascade,
+  month text not null check (month ~ '^\d{4}-\d{2}$'),
+  email text not null,
+  amount numeric(8,2) not null,
+  sent_at timestamptz not null default now(),
+  unique (member_id, month)
+);
+
+alter table public.reminders enable row level security;
+drop policy if exists "staff read reminders" on public.reminders;
+drop policy if exists "staff add reminders" on public.reminders;
+create policy "staff read reminders" on public.reminders
+  for select to authenticated using (public.is_staff());
+create policy "staff add reminders" on public.reminders
+  for insert to authenticated with check (public.is_staff());
+revoke all on public.reminders from anon;

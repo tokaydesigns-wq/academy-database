@@ -92,7 +92,9 @@ function demoSeed() {
   const pauses = [{ id: crypto.randomUUID(), member_id: members[2].id, start_month: month,
     end_month: shiftMonth(month, 1), note: 'Knee surgery', created_by: 'demo@example.com',
     created_at: new Date().toISOString() }];
-  return { members, classes, enrollments, payments, waivers, pauses };
+  const reminders = [{ id: crypto.randomUUID(), member_id: members[3].id, month, email: members[3].email,
+    amount: 39.99, sent_at: `${month}-15T15:00:00Z` }];
+  return { members, classes, enrollments, payments, waivers, pauses, reminders };
 }
 
 function demoLoad() {
@@ -100,6 +102,7 @@ function demoLoad() {
     const saved = JSON.parse(localStorage.getItem(DEMO_KEY));
     if (saved && Array.isArray(saved.members)) {
       saved.pauses = saved.pauses || [];   // demo data saved before pauses existed
+      saved.reminders = saved.reminders || [];
       return saved;
     }
   } catch (e) { /* storage blocked or broken: start fresh */ }
@@ -222,6 +225,10 @@ const demoDB = {
   },
   async listPauses() {
     return this.data.pauses.map(p => ({ ...p }));
+  },
+  // Reminder emails are sent by the Gmail script (reminders/), never by the app.
+  async listReminders() {
+    return this.data.reminders.map(r => ({ ...r }));
   },
   async savePause(id, fields) {
     const row = demoUpsert(this.data.pauses, id, { created_by: 'demo@example.com', ...fields });
@@ -370,6 +377,7 @@ function supabaseDB() {
       return data.signedUrl;
     },
     listPauses: () => list('pauses'),
+    listReminders: () => list('reminders', { order: 'sent_at' }),
     savePause: (id, fields) => save('pauses', id, fields),
     async deletePause(id) {
       const { error } = await sb.from('pauses').delete().eq('id', id);

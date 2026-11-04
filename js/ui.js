@@ -11,6 +11,7 @@ const state = {
   payments: [],
   waivers: [],
   pauses: [],
+  reminders: [],
   payMonth: thisMonth(),   // month shown on the Payments tab
   loaded: false,
   loginError: '',
@@ -60,9 +61,9 @@ async function render() {
 // members' changes appear after a refresh.
 let lastLoad = 0;
 async function loadAll() {
-  [state.members, state.classes, state.enrollments, state.payments, state.waivers, state.pauses] =
-    await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments(), DB.listPayments(),
-      DB.listWaivers(), DB.listPauses()]);
+  [state.members, state.classes, state.enrollments, state.payments, state.waivers, state.pauses,
+    state.reminders] = await Promise.all([DB.listMembers(), DB.listClasses(), DB.listEnrollments(),
+      DB.listPayments(), DB.listWaivers(), DB.listPauses(), DB.listReminders()]);
   state.loaded = true;
   lastLoad = Date.now();
 }
@@ -530,7 +531,7 @@ const ACTIONS = {
   },
   async 'sign-out'() {
     await DB.signOut();
-    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], waivers: [], pauses: [],
+    Object.assign(state, { user: null, members: [], classes: [], enrollments: [], payments: [], waivers: [], pauses: [], reminders: [],
       loaded: false, query: '' });
     go('#/members');
   },
