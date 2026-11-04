@@ -51,6 +51,8 @@ doesn't cover, the member page shows a warning.
   set up with `reminders/SETUP.md`) emails everyone who owes on the 15th. It uses the SQL
   function `members_owing()`, which repeats the billing rules from `planFor()`/`statusFor()`.
   **If the billing rules or prices change, change both**, and re-check them against each other.
+  `remindersOn` in `config.js` switches the app's reminder notes on once the script is set up
+  (off as of 2026-11-04: the owner will set it up later).
 - Staff can set a custom price for special deals. Karate and Judo are no longer offered. Punch
   cards exist, but the owner chose not to track them.
 

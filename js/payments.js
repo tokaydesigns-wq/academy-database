@@ -169,8 +169,10 @@ function reminderFor(m, month) {
   return state.reminders.find(r => r.member_id === m.id && r.month === month);
 }
 
-// What staff need to know about the reminder for someone who owes.
+// What staff need to know about the reminder for someone who owes. Nothing while reminders
+// are switched off in config.js.
 function reminderNote(m, month) {
+  if (!CONFIG.remindersOn) return '';
   const sent = reminderFor(m, month);
   if (sent) return `✉ Reminder emailed ${fmtDate(sent.sent_at)}`;
   if (!looksLikeEmail(m.email || '')) return '⚠ No email on file, so no reminder. Call them instead.';
