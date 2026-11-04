@@ -54,7 +54,11 @@ so you can change it without affecting anyone.
    `sendPaymentReminders`.
 
 That's it. Each month on the 15th, the gym gets a "payment reminders sent" email listing who was
-reminded. Member pages in the app show "Reminder emailed".
+reminded.
+
+**Last step: switch on reminder details in the app.** Ask Claude to set `remindersOn: true` in
+`config.js`. Member pages and the Payments tab will then show "Reminder emailed", or a warning
+when someone has no email on file. While it's `false`, the app says nothing about reminders.
 
 ## Changing or stopping it
 
