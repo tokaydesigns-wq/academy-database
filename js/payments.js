@@ -144,6 +144,7 @@ function memberPaymentsCard(m) {
       ${behind.length > 1 || (behind.length === 1 && behind[0].month !== month)
         ? field('Unpaid months', `<span class="owes">${fmtMoney(total)} total</span><br>
           <span class="small">${behind.map(b => `${esc(fmtMonth(b.month))}: ${fmtMoney(b.owes)}`).join('<br>')}</span>`) : ''}
+      ${s.owes ? field('Reminder', esc(reminderNote(m, month))) : ''}
       ${field('Billing since', esc(fmtMonth(joinedMonth(m))))}
       ${m.active ? '' : field('Left', `Not billed from ${esc(fmtMonth(leftMonth(m)))}`)}
     </dl>
@@ -161,6 +162,19 @@ function memberPaymentsCard(m) {
       ${currentPause(m) ? '' : `<a class="btn small-btn" href="#/pause/${encodeURIComponent(m.id)}">⏸ Pause plan</a>`}
     </div>
   </div>`;
+}
+
+// The reminder email for this month (sent on the 15th by the Gmail script in reminders/).
+function reminderFor(m, month) {
+  return state.reminders.find(r => r.member_id === m.id && r.month === month);
+}
+
+// What staff need to know about the reminder for someone who owes.
+function reminderNote(m, month) {
+  const sent = reminderFor(m, month);
+  if (sent) return `✉ Reminder emailed ${fmtDate(sent.sent_at)}`;
+  if (!looksLikeEmail(m.email || '')) return '⚠ No email on file, so no reminder. Call them instead.';
+  return month === thisMonth() && new Date().getDate() < 15 ? 'Reminder goes out on the 15th if still unpaid' : '';
 }
 
 // "Paused Nov 2026 – Dec 2026" (or "from Nov 2026, no return date yet"), with edit/end buttons.
@@ -276,6 +290,7 @@ function paymentsScreen() {
     <span class="grow">
       <strong>${esc(fullName(r.m))}</strong>
       <span class="muted small wrap">${fmtMoney(r.plan.cents)}/mo · ${esc(r.plan.label)}</span>
+      ${r.s.owes ? `<span class="small wrap">${esc(reminderNote(r.m, month))}</span>` : ''}
     </span>
     <span class="tag ${r.s.owes ? 'full' : 'ok'}">${r.s.owes ? fmtMoney(r.s.owes) : 'Paid'}</span>
   </a></li>`;

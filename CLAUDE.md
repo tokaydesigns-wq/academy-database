@@ -47,6 +47,10 @@ doesn't cover, the member page shows a warning.
 - Nothing is due for months before a member was added to the app (`joinedMonth()`, from
   `created_at`) or while their plan is paused (`pauses` table, `pauseFor()`). Pauses are kept
   after they end so past paused months never count as owed. Past months use the current plan.
+- **Payment reminders:** a Google Apps Script in the gym's Gmail (`reminders/Reminders.gs`,
+  set up with `reminders/SETUP.md`) emails everyone who owes on the 15th. It uses the SQL
+  function `members_owing()`, which repeats the billing rules from `planFor()`/`statusFor()`.
+  **If the billing rules or prices change, change both**, and re-check them against each other.
 - Staff can set a custom price for special deals. Karate and Judo are no longer offered. Punch
   cards exist, but the owner chose not to track them.
 
