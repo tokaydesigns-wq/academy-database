@@ -437,3 +437,20 @@ li.row { padding: 0 4px 0 0; }
   border: 1px solid var(--accent);
 }
 .pause-banner .actions { margin-top: 6px; }
+
+/* Front desk mode (iPad sign-up station) */
+.kiosk-welcome { text-align: center; padding: 56px 8px 24px; display: flex; flex-direction: column; align-items: center; gap: 14px; }
+.kiosk-welcome h1 { margin: 8px 0 0; font-size: 28px; }
+.kiosk-welcome p { margin: 0; max-width: 460px; font-size: 18px; color: var(--muted); }
+.btn.big { min-height: 56px; padding: 0 36px; font-size: 20px; border-radius: 14px; }
+.kiosk-staff { margin-top: 48px; }
+.kiosk-staff .link-btn { color: var(--muted); font-weight: 400; }
+.done-check {
+  width: 84px; height: 84px; display: grid; place-items: center;
+  border-radius: 50%; background: var(--ok-bg); color: var(--ok);
+  font-size: 44px; font-weight: 800;
+}
+.programs { grid-template-columns: repeat(3, 1fr); }
+.programs legend { font-weight: 400; margin-bottom: 8px; }
+.tag.new { background: var(--accent-soft); color: var(--accent); }
+.card.review { background: var(--accent-soft); border-color: var(--accent); margin-top: 12px; }

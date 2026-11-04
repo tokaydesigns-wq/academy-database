@@ -270,3 +270,8 @@ revoke all on public.pauses from anon;
 -- back. Anything owed before they left still counts.
 alter table public.members add column if not exists inactive_since text
   check (inactive_since is null or inactive_since ~ '^\d{4}-\d{2}$');
+
+-- Front desk mode (added 2026-11-04): members fill in their own details and sign the waiver
+-- on the gym's iPad. review_note tells staff what to check (e.g. the program they asked for);
+-- staff clear it once they've confirmed the plan.
+alter table public.members add column if not exists review_note text not null default '';

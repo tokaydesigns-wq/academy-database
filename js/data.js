@@ -25,7 +25,7 @@ function demoMembers() {
     email: `${first}.${last}@example.com`.toLowerCase(), phone, date_of_birth: dob,
     address: '', city: '', state: '', zip: '', alt_phone: '', sex: null, medical: '',
     emergency_name: '', emergency_phone: '', emergency_alt_phone: '', emergency_relation: '',
-    notes: '', active: true, plan: 'auto', custom_price: null, paid_by: null,
+    notes: '', active: true, plan: 'auto', custom_price: null, paid_by: null, review_note: '',
     created_at: new Date().toISOString(), ...extra
   });
   return [
@@ -137,6 +137,10 @@ const demoDB = {
   },
   async changePassword() {
     throw new Error('Passwords aren’t used in demo mode.');
+  },
+  // Leaving front desk mode: any password works in demo mode.
+  async checkPassword(password) {
+    if (!password) throw new Error('Enter the staff password.');
   },
   async listMembers() {
     return this.data.members.map(m => ({ ...m }));
@@ -302,6 +306,12 @@ function supabaseDB() {
     async changePassword(password) {
       const { error } = await sb.auth.updateUser({ password });
       if (error) fail(error);
+    },
+    // Leaving front desk mode: signing in again with the same email proves the password.
+    async checkPassword(password) {
+      const { data: { session } } = await sb.auth.getSession();
+      const { error } = await sb.auth.signInWithPassword({ email: session.user.email, password });
+      if (error) throw new Error('That password isn’t right.');
     },
     listMembers: () => list('members', { order: 'first_name' }),
     saveMember: (id, fields) => save('members', id, fields),
