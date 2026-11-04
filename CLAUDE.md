@@ -23,7 +23,7 @@ The owner of this project isn't a developer. Write to them in plain language, sh
     changes, bump `WAIVER.version`, and members who signed an older version get asked to re-sign.
   - Each signed waiver stores a copy of the exact text that was signed.
   - Signing happens with a staff member signed in. **Front desk mode** (`js/kiosk.js`) lets
-    members fill in their own details and sign on the gym's iPad: it's signed in by staff, only
+    members fill in their own details and sign on the gym's Android tablet: it's signed in by staff, only
     the front desk screens can be shown, leaving needs the staff password, and members never see
     anyone else's data. Existing members are matched by name + birthday (or phone) and only
     blank fields are filled. Sign-ups get a `review_note` ("To check") for staff to confirm.
