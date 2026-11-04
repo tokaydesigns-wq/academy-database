@@ -1,4 +1,4 @@
-// Front desk mode: the gym's iPad, signed in by staff, where members fill in their own details
+// Front desk mode: the gym's tablet (Android), signed in by staff, where members fill in their own details
 // and sign the waiver. While it's on, only these screens can be shown (see render() in ui.js):
 // #/kiosk (welcome), #/kiosk-form, #/kiosk-done, #/kiosk-exit (staff password to leave).
 // Members never see anyone else's details. Existing members are matched by name plus date of
@@ -27,12 +27,13 @@ const KIOSK_PROGRAMS = [
 // ---------- On the account (☰) screen ----------
 
 function frontDeskCard() {
-  return `<h3 class="section">Front desk iPad</h3>
+  return `<h3 class="section">Front desk tablet</h3>
   <div class="card stack">
     <p class="small">Turns this device into a sign-up station. Members fill in their own details,
       choose a program and sign the waiver. They can’t see anyone else’s details.</p>
     <p class="muted small">To leave front desk mode you’ll need this account’s password.
-      On an iPad, also turn on Guided Access (Settings → Accessibility) so members can’t switch apps.</p>
+      Also pin the app on the tablet so members can’t switch apps: turn on App pinning in Android
+      Settings (search “pin”), then pin this app from the Recent apps screen.</p>
     <button class="btn primary" data-act="kiosk-start">Start front desk mode</button>
   </div>`;
 }
@@ -262,7 +263,7 @@ function kioskDoneScreen() {
   return `<section class="kiosk-welcome">
     <div class="done-check">✓</div>
     <h1>All done${kioskFirstName ? `, ${esc(kioskFirstName)}` : ''}!</h1>
-    <p>Thanks. Your details and waiver are saved. Please hand the iPad back to the front desk.</p>
+    <p>Thanks. Your details and waiver are saved. Please hand the tablet back to the front desk.</p>
     <a class="btn big" href="#/kiosk">Done</a>
   </section>`;
 }
