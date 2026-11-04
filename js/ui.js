@@ -45,6 +45,11 @@ async function render() {
     }
   }
   const r = route();
+  // In front desk mode (kiosk.js) only the front desk screens can be shown, whatever the address.
+  if (kioskOn() && !KIOSK_SCREENS.includes(r.name)) {
+    history.replaceState(null, '', '#/kiosk');
+    return render();
+  }
   const screen = SCREENS[r.name] || SCREENS.members;
   app.innerHTML = demoBanner() + screen.html(r.id) + (screen.tab ? navBar(screen.tab) : '');
   if (screen.after) screen.after(r.id);
@@ -64,7 +69,7 @@ async function loadAll() {
 
 // Screens where redrawing would throw away what someone is typing or signing.
 const TYPING_SCREENS = ['new', 'edit', 'pay', 'sign', 'paper', 'pause', 'new-class', 'edit-class',
-  'enroll', 'join', 'account'];
+  'enroll', 'join', 'account', 'kiosk', 'kiosk-form', 'kiosk-done', 'kiosk-exit'];
 
 // Fetch the latest data. Automatic refreshes leave forms alone and keep the scroll position;
 // the ↻ button always redraws.
@@ -177,7 +182,7 @@ function listScreen() {
   <div class="tools">
     <input id="search" type="search" placeholder="Search name, phone or email"
       value="${esc(state.query)}" autocomplete="off" aria-label="Search members">
-    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('paused', 'Paused')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
+    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('paused', 'Paused')}${chip('review', 'To check')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
   </div>
   <p id="count" class="muted small"></p>
   <ul id="list" class="list"></ul>
@@ -198,6 +203,7 @@ function renderList() {
     active: m => m.active,
     nowaiver: m => m.active && !waiverStatus(m).ok,
     paused: m => m.active && !!pauseFor(m, thisMonth()),
+    review: m => !!m.review_note,
     inactive: m => !m.active,
     all: () => true
   }[state.filter];
@@ -214,12 +220,14 @@ function renderList() {
         <strong>${esc(fullName(m))}</strong>
         <span class="muted small">${esc(m.phone || m.email || 'No contact info')}</span>
       </span>
-      ${!m.active ? '<span class="tag">Inactive</span>'
+      ${m.review_note ? '<span class="tag new">To check</span>'
+        : !m.active ? '<span class="tag">Inactive</span>'
         : pauseFor(m, thisMonth()) ? '<span class="tag">Paused</span>'
         : waiverStatus(m).ok ? '' : '<span class="tag full">No waiver</span>'}
     </a></li>`).join('')
     : `<li class="empty">${q ? 'No one matches that search.'
       : { nowaiver: 'Every active member has a waiver.', paused: 'No one’s plan is paused right now.',
+          review: 'Nothing to check. Front desk sign-ups show up here.',
           inactive: 'No one has left.' }[state.filter]
         || (state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.')}</li>`;
 }
@@ -247,6 +255,14 @@ function memberScreen(id) {
     </div>
   </section>
 
+  ${m.review_note ? `<div class="card review">
+    <p><strong>To check:</strong> ${esc(m.review_note)}</p>
+    <p class="muted small">Check their plan, classes and details, then mark it done.</p>
+    <div class="actions start">
+      <a class="btn small-btn" href="#/edit/${encodeURIComponent(m.id)}">Edit details</a>
+      <button class="btn small-btn primary" data-act="review-done" data-id="${esc(m.id)}">✓ Checked</button>
+    </div>
+  </div>` : ''}
   ${m.medical ? `<div class="card medical"><strong>Medical:</strong> ${esc(m.medical)}</div>` : ''}
 
   <h3 class="section">Waiver</h3>
@@ -467,6 +483,7 @@ function accountScreen() {
     <button class="btn" data-act="sign-out">Sign out</button>
   </div>
   ${backupCard()}
+  ${frontDeskCard()}
   ${DEMO ? `
   <h3 class="section">Demo</h3>
   <div class="card stack">

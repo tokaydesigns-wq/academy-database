@@ -22,7 +22,11 @@ The owner of this project isn't a developer. Write to them in plain language, sh
     into `js/waiver-text.js`. Never edit legal text without the owner's say-so. If the wording
     changes, bump `WAIVER.version`, and members who signed an older version get asked to re-sign.
   - Each signed waiver stores a copy of the exact text that was signed.
-  - Signing happens with a staff member signed in (no self-service kiosk for now).
+  - Signing happens with a staff member signed in. **Front desk mode** (`js/kiosk.js`) lets
+    members fill in their own details and sign on the gym's iPad: it's signed in by staff, only
+    the front desk screens can be shown, leaving needs the staff password, and members never see
+    anyone else's data. Existing members are matched by name + birthday (or phone) and only
+    blank fields are filled. Sign-ups get a `review_note` ("To check") for staff to confirm.
   - Under 18: a parent or guardian signs, and their name is recorded with the signature.
   - A waiver lasts as long as the person is a member. Only ask for a new one if the wording changes.
 - No build step and no frameworks unless there's a clear reason. Plain HTML, CSS and JavaScript.
