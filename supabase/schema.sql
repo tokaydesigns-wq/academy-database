@@ -270,3 +270,28 @@ revoke all on public.pauses from anon;
 -- back. Anything owed before they left still counts.
 alter table public.members add column if not exists inactive_since text
   check (inactive_since is null or inactive_since ~ '^\d{4}-\d{2}$');
+
+-- Attendance (added 2026-11-03): who came to which class on which day. Drop-ins (members not
+-- signed up for that class) are allowed. Staff can untick someone marked by mistake.
+create table if not exists public.attendance (
+  id uuid primary key default gen_random_uuid(),
+  class_id uuid not null references public.classes(id) on delete cascade,
+  member_id uuid not null references public.members(id) on delete cascade,
+  session_date date not null,
+  recorded_by text not null default coalesce(auth.jwt() ->> 'email', ''),
+  created_at timestamptz not null default now(),
+  unique (class_id, member_id, session_date)
+);
+create index if not exists attendance_by_date on public.attendance (session_date);
+
+alter table public.attendance enable row level security;
+drop policy if exists "staff read attendance" on public.attendance;
+drop policy if exists "staff add attendance" on public.attendance;
+drop policy if exists "staff remove attendance" on public.attendance;
+create policy "staff read attendance" on public.attendance
+  for select to authenticated using (public.is_staff());
+create policy "staff add attendance" on public.attendance
+  for insert to authenticated with check (public.is_staff());
+create policy "staff remove attendance" on public.attendance
+  for delete to authenticated using (public.is_staff());
+revoke all on public.attendance from anon;
