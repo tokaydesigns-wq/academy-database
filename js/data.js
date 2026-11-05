@@ -5,7 +5,8 @@
 const MEMBER_FIELDS = [
   'first_name', 'last_name', 'email', 'phone', 'alt_phone', 'date_of_birth', 'sex',
   'address', 'city', 'state', 'zip', 'medical',
-  'emergency_name', 'emergency_phone', 'emergency_alt_phone', 'emergency_relation', 'notes', 'active'
+  'emergency_name', 'emergency_phone', 'emergency_alt_phone', 'emergency_relation',
+  'guardian_name', 'guardian_relation', 'guardian_phone', 'guardian_email', 'notes', 'active'
 ];
 
 // Waiver columns loaded up front. The text and signature images are only fetched when a
@@ -25,6 +26,7 @@ function demoMembers() {
     email: `${first}.${last}@example.com`.toLowerCase(), phone, date_of_birth: dob,
     address: '', city: '', state: '', zip: '', alt_phone: '', sex: null, medical: '',
     emergency_name: '', emergency_phone: '', emergency_alt_phone: '', emergency_relation: '',
+    guardian_name: '', guardian_relation: '', guardian_phone: '', guardian_email: '',
     notes: '', active: true, plan: 'auto', custom_price: null, paid_by: null, review_note: '',
     created_at: new Date().toISOString(), ...extra
   });
@@ -33,7 +35,8 @@ function demoMembers() {
       { emergency_name: 'Sam Testerson', emergency_phone: '555-0102', emergency_relation: 'Partner' }),
     m('Bea', 'Sample', '555-0110', '2012-09-30',
       { emergency_name: 'Cora Sample', emergency_phone: '555-0111', emergency_relation: 'Mum',
-        medical: 'Mild asthma, carries an inhaler.', sex: 'female' }),
+        medical: 'Mild asthma, carries an inhaler.', sex: 'female', guardian_name: 'Cora Sample',
+        guardian_relation: 'Mom', guardian_phone: '555-0111', guardian_email: 'cora.sample@example.com' }),
     m('Charlie', 'Demo', '555-0120', '1985-01-05',
       { address: '1 Example Street', city: 'Exampleton', state: 'WI', zip: '00000', sex: 'male' }),
     m('Dana', 'Placeholder', '555-0130', '2001-07-21'),

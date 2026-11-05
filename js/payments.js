@@ -175,7 +175,7 @@ function reminderNote(m, month) {
   if (!CONFIG.remindersOn) return '';
   const sent = reminderFor(m, month);
   if (sent) return `✉ Reminder emailed ${fmtDate(sent.sent_at)}`;
-  if (!looksLikeEmail(m.email || '')) return '⚠ No email on file, so no reminder. Call them instead.';
+  if (!looksLikeEmail(m.email || m.guardian_email || '')) return '⚠ No email on file, so no reminder. Call them instead.';
   return month === thisMonth() && new Date().getDate() < 15 ? 'Reminder goes out on the 15th if still unpaid' : '';
 }
 

@@ -129,6 +129,22 @@ function findMember(id) {
   return state.members.find(m => m.id === id);
 }
 
+// Parent or guardian details. Shown when there are any, or as a warning for an under-18 with none.
+function guardianCard(m) {
+  const has = m.guardian_name || m.guardian_phone || m.guardian_email;
+  const age = ageFrom(m.date_of_birth);
+  if (!has && !(age !== null && age < 18)) return '';
+  const tel = p => (p ? `<a href="${esc(telHref(p))}">${esc(p)}</a>` : '');
+  return `<h3 class="section">Parent or guardian</h3>
+  <dl class="card ${has ? '' : 'warn'}">
+    ${has ? `
+      ${field('Name', esc(m.guardian_name) + (m.guardian_relation ? ` <span class="muted">(${esc(m.guardian_relation)})</span>` : ''))}
+      ${field('Phone', tel(m.guardian_phone))}
+      ${field('Email', m.guardian_email ? `<a href="mailto:${esc(m.guardian_email)}">${esc(m.guardian_email)}</a>` : '')}`
+      : `<p>Under 18 with no parent or guardian on file yet.</p>`}
+  </dl>`;
+}
+
 // "1 Example St, Exampleton, WI 00000"
 function fullAddress(m) {
   const stateZip = [m.state, m.zip].filter(Boolean).join(' ');
@@ -288,6 +304,7 @@ function memberScreen(id) {
       ${field('Alt phone', m.emergency_alt_phone ? `<a href="${esc(telHref(m.emergency_alt_phone))}">${esc(m.emergency_alt_phone)}</a>` : '')}`
       : '<p>No emergency contact yet.</p>'}
   </dl>
+  ${guardianCard(m)}
 
   <h3 class="section">Classes</h3>
   ${memberClassesCard(m)}
@@ -411,6 +428,18 @@ function formScreen(id) {
       </div>
     </div>
 
+    <h3 class="section">Parent or guardian <span class="muted">(if under 18)</span></h3>
+    <div class="card stack">
+      <div class="two">
+        ${input('guardian_name', 'Name', m, 'text', 'autocomplete="off"')}
+        ${input('guardian_relation', 'Relationship', m, 'text', 'placeholder="e.g. Mom" autocomplete="off"')}
+      </div>
+      <div class="two">
+        ${input('guardian_phone', 'Phone', m, 'tel', 'autocomplete="off"')}
+        ${input('guardian_email', 'Email', m, 'email', 'autocomplete="off"')}
+      </div>
+    </div>
+
     <h3 class="section">Monthly price</h3>
     ${planFieldsHtml(m, id)}
 
@@ -450,6 +479,7 @@ async function onSaveMember(form) {
   const problem =
     !fields.first_name ? 'Add a first name.' :
     fields.email && !looksLikeEmail(fields.email) ? 'That email doesn’t look right.' :
+    fields.guardian_email && !looksLikeEmail(fields.guardian_email) ? 'The parent’s email doesn’t look right.' :
     fields.date_of_birth && new Date(fields.date_of_birth) > new Date() ? 'Date of birth is in the future.' :
     plan.problem;
   const errorEl = $('#form-error');
