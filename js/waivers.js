@@ -70,7 +70,7 @@ function signScreen(memberId) {
         <canvas class="sig-pad" id="pad-participant" aria-label="Participant signature: sign with your finger"></canvas>
       </div>
       <div data-minor="minor" class="stack">
-        <label>Parent/guardian printed name *<input name="guardian_name" autocomplete="off"></label>
+        <label>Parent/guardian printed name *<input name="guardian_name" value="${esc(m.guardian_name)}" autocomplete="off"></label>
         <div>
           <div class="pad-label"><strong>Parent/guardian signature *</strong>
             <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-guardian">Clear</button></div>

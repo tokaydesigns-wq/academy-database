@@ -33,12 +33,14 @@ const BACKUPS = {
       ['First name', 'Last name', 'Active', 'Phone', 'Alt phone', 'Email', 'Date of birth', 'Sex',
         'Street address', 'City', 'State', 'Zip', 'Medical conditions',
         'Emergency contact', 'Relation', 'Emergency phone', 'Emergency alt phone',
+        'Parent/guardian', 'Parent relation', 'Parent phone', 'Parent email',
         'Waiver', 'Plan', 'Monthly price', 'Paused now', 'Unpaid total', 'Classes', 'Notes', 'Added'],
       [...state.members].sort((a, b) => fullName(a).localeCompare(fullName(b))).map(m => {
         const plan = planFor(m);
         return [m.first_name, m.last_name, yesNo(m.active), m.phone, m.alt_phone, m.email,
           m.date_of_birth, m.sex, m.address, m.city, m.state, m.zip, m.medical,
           m.emergency_name, m.emergency_relation, m.emergency_phone, m.emergency_alt_phone,
+          m.guardian_name, m.guardian_relation, m.guardian_phone, m.guardian_email,
           waiverStatus(m).label, plan.label, money(plan.cents), yesNo(pauseFor(m, thisMonth())),
           money(unpaidMonths(m).reduce((sum, b) => sum + b.owes, 0)),
           classesOf(m.id).map(c => c.name).join('; '), m.notes, (m.created_at || '').slice(0, 10)];

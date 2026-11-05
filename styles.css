@@ -454,3 +454,6 @@ li.row { padding: 0 4px 0 0; }
 .programs legend { font-weight: 400; margin-bottom: 8px; }
 .tag.new { background: var(--accent-soft); color: var(--accent); }
 .card.review { background: var(--accent-soft); border-color: var(--accent); margin-top: 12px; }
+
+/* Tablet form: the parent section stands out once the birthday shows they're under 18 */
+.guardian-card.required { background: var(--accent-soft); border-color: var(--accent); }

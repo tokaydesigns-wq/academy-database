@@ -276,6 +276,14 @@ alter table public.members add column if not exists inactive_since text
 -- staff clear it once they've confirmed the plan.
 alter table public.members add column if not exists review_note text not null default '';
 
+-- Parent or guardian for members under 18 (added 2026-11-05), filled in on the front desk
+-- tablet or by staff. A child with no email of their own gets payment reminders at the
+-- parent's email instead.
+alter table public.members add column if not exists guardian_name text not null default '';
+alter table public.members add column if not exists guardian_relation text not null default '';
+alter table public.members add column if not exists guardian_phone text not null default '';
+alter table public.members add column if not exists guardian_email text not null default '';
+
 -- Payment reminders (added 2026-11-04). A Google Apps Script in the gym's Gmail
 -- (reminders/Reminders.gs) runs on the 15th, asks members_owing() who hasn't paid for the
 -- month, emails them, and logs each email in reminders so nobody is emailed twice.
@@ -329,7 +337,7 @@ language sql stable security invoker set search_path = public as $$
                 where py.member_id = pr.id and py.covers_month = p_month), 0) as paid_amt
     from priced pr
   )
-  select id, first_name, last_name, email, due_amt, paid_amt, due_amt - paid_amt
+  select id, first_name, last_name, coalesce(nullif(email, ''), guardian_email), due_amt, paid_amt, due_amt - paid_amt
   from status
   where due_amt - paid_amt > 0
   order by first_name, last_name;

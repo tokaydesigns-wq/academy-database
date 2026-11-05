@@ -108,6 +108,20 @@ function kioskFormScreen() {
       </div>
     </div>
 
+    <h3 class="section">Parent or guardian <span class="muted">(if under 18)</span></h3>
+    <div class="card stack guardian-card" id="guardian-card">
+      <p class="small" id="minor-status">If you’re under 18, a parent or guardian needs to fill this in and sign
+        the waiver below.</p>
+      <div class="two">
+        ${input('guardian_name', '<span>Parent/guardian name <span data-minor="minor">*</span></span>', blank)}
+        ${input('guardian_relation', 'Relationship', blank, 'text', 'placeholder="e.g. Mom, Dad"')}
+      </div>
+      <div class="two">
+        ${input('guardian_phone', '<span>Phone <span data-minor="minor">*</span></span>', blank, 'tel')}
+        ${input('guardian_email', 'Email', blank, 'email')}
+      </div>
+    </div>
+
     <h3 class="section">What would you like to train?</h3>
     <div class="card stack">
       <fieldset class="methods programs">
@@ -121,19 +135,16 @@ function kioskFormScreen() {
     <div class="card waiver-text">${waiverTextHtml(waiverText())}</div>
     <div class="card stack">
       <input type="checkbox" id="minor-check" name="minor" hidden>
-      <p class="small" data-minor="minor"><strong>Under 18:</strong> a parent or guardian needs to sign below.</p>
       <div>
         <div class="pad-label"><strong>Your signature <span data-minor="adult">*</span><span data-minor="minor" class="muted small">(optional)</span></strong>
           <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-participant">Clear</button></div>
         <canvas class="sig-pad" id="pad-participant" aria-label="Your signature: sign with your finger"></canvas>
       </div>
-      <div data-minor="minor" class="stack">
-        <label>Parent/guardian printed name *<input name="guardian_name"></label>
-        <div>
-          <div class="pad-label"><strong>Parent/guardian signature *</strong>
-            <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-guardian">Clear</button></div>
-          <canvas class="sig-pad" id="pad-guardian" aria-label="Parent or guardian signature: sign with your finger"></canvas>
-        </div>
+      <div>
+        <div class="pad-label"><strong>Parent/guardian signature <span data-minor="minor">*</span><span data-minor="adult"
+          class="muted small">(if under 18)</span></strong>
+          <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-guardian">Clear</button></div>
+        <canvas class="sig-pad" id="pad-guardian" aria-label="Parent or guardian signature: sign with your finger"></canvas>
       </div>
       <p class="small">Date: <strong>${esc(fmtDate(todayISO()))}</strong></p>
       <label class="check"><input type="checkbox" name="agree"> I have read this waiver and agree to it.</label>
@@ -154,6 +165,11 @@ function syncKioskAge() {
   if (!box) return;
   const age = ageFrom(dob);
   box.checked = age !== null && age < 18;
+  const status = $('#minor-status');
+  status.innerHTML = box.checked
+    ? `<strong>You’re under 18</strong>, so a parent or guardian needs to fill this in and sign the waiver below.`
+    : `If you’re under 18, a parent or guardian needs to fill this in and sign the waiver below.`;
+  $('#guardian-card').classList.toggle('required', box.checked);
   syncMinor();
 }
 
@@ -177,8 +193,12 @@ async function onKioskSubmit(form) {
   }
   const program = (form.querySelector('input[name=program]:checked') || {}).value;
   const minor = $('#minor-check').checked;
+  if (!minor) {
+    // Parent details only belong with under-18s.
+    for (const k of ['guardian_name', 'guardian_relation', 'guardian_phone', 'guardian_email']) f[k] = '';
+  }
   const signature = padImage($('#pad-participant'));
-  const guardianName = minor ? form.guardian_name.value.trim() : '';
+  const guardianName = f.guardian_name;
   const guardianSignature = minor ? padImage($('#pad-guardian')) : null;
 
   const problem =
@@ -190,8 +210,10 @@ async function onKioskSubmit(form) {
     !f.emergency_name || digitsOf(f.emergency_phone).length < 7 ? 'Please add an emergency contact name and phone.' :
     program === undefined ? 'Please choose what you’d like to train (or “Not sure yet”).' :
     !minor && !signature ? 'Please sign the waiver in the box.' :
-    minor && !guardianName ? 'Please add the parent or guardian’s name.' :
-    minor && !guardianSignature ? 'A parent or guardian needs to sign in the box.' :
+    minor && !guardianName ? 'You’re under 18: please add your parent or guardian’s name.' :
+    minor && digitsOf(f.guardian_phone).length < 7 ? 'Please add your parent or guardian’s phone number.' :
+    minor && f.guardian_email && !looksLikeEmail(f.guardian_email) ? 'The parent or guardian’s email doesn’t look right.' :
+    minor && !guardianSignature ? 'A parent or guardian needs to sign the waiver in the box.' :
     !form.agree.checked ? 'Please tick the box to agree to the waiver.' : '';
   const errorEl = $('#form-error');
   if (problem) {
