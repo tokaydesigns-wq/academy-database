@@ -202,7 +202,7 @@ function listScreen() {
   <div class="tools">
     <input id="search" type="search" placeholder="Search name, phone or email"
       value="${esc(state.query)}" autocomplete="off" aria-label="Search members">
-    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('paused', 'Paused')}${chip('review', 'To check')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
+    <div class="chips">${chip('active', 'Active')}${chip('nowaiver', 'No waiver')}${chip('paused', 'Paused')}${chip('review', 'To check')}${chip('birthdays', 'Birthdays')}${chip('inactive', 'Inactive')}${chip('all', 'All')}</div>
   </div>
   <p id="count" class="muted small"></p>
   <ul id="list" class="list"></ul>
@@ -224,23 +224,31 @@ function renderList() {
     nowaiver: m => m.active && !waiverStatus(m).ok,
     paused: m => m.active && !!pauseFor(m, thisMonth()),
     review: m => !!m.review_note,
+    birthdays: m => m.active && !!birthdayThisMonth(m.date_of_birth),
     inactive: m => !m.active,
     all: () => true
   }[state.filter];
+  // Birthdays are listed by date, everything else by name.
+  const bdays = state.filter === 'birthdays';
+  const day = m => birthdayThisMonth(m.date_of_birth).day;
   const shown = state.members
     .filter(keep)
     .filter(m => matches(m, q))
-    .sort((a, b) => fullName(a).localeCompare(fullName(b)));
+    .sort((a, b) => (bdays ? day(a) - day(b) : 0) || fullName(a).localeCompare(fullName(b)));
 
-  $('#count').textContent = shown.length === 1 ? '1 member' : `${shown.length} members`;
+  const monthName = new Date().toLocaleDateString(undefined, { month: 'long' });
+  $('#count').textContent = bdays
+    ? `${shown.length === 1 ? '1 birthday' : `${shown.length} birthdays`} in ${monthName}`
+    : shown.length === 1 ? '1 member' : `${shown.length} members`;
   $('#list').innerHTML = shown.length ? shown.map(m => `
     <li><a class="row" href="#/m/${encodeURIComponent(m.id)}">
       <span class="avatar">${esc(initials(m))}</span>
       <span class="grow">
         <strong>${esc(fullName(m))}</strong>
-        <span class="muted small">${esc(m.phone || m.email || 'No contact info')}</span>
+        <span class="muted small">${esc(bdays ? birthdayLine(m) : m.phone || m.email || 'No contact info')}</span>
       </span>
-      ${m.review_note ? '<span class="tag new">To check</span>'
+      ${bdays ? (day(m) === new Date().getDate() ? '<span class="tag ok">Today 🎂</span>' : '')
+        : m.review_note ? '<span class="tag new">To check</span>'
         : !m.active ? '<span class="tag">Inactive</span>'
         : pauseFor(m, thisMonth()) ? '<span class="tag">Paused</span>'
         : waiverStatus(m).ok ? '' : '<span class="tag full">No waiver</span>'}
@@ -248,8 +256,19 @@ function renderList() {
     : `<li class="empty">${q ? 'No one matches that search.'
       : { nowaiver: 'Every active member has a waiver.', paused: 'No one’s plan is paused right now.',
           review: 'Nothing to check. Front desk sign-ups show up here.',
+          birthdays: `No active member has a birthday in ${monthName}.`,
           inactive: 'No one has left.' }[state.filter]
         || (state.members.length ? 'No one matches that search.' : 'No members yet. Add the first one.')}</li>`;
+}
+
+// "Turns 12 on Nov 14" (or "Turned 12 on Nov 2" once it's passed)
+function birthdayLine(m) {
+  const b = birthdayThisMonth(m.date_of_birth);
+  const now = new Date();
+  const date = new Date(now.getFullYear(), now.getMonth(), b.day)
+    .toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  if (b.day === now.getDate()) return `Turns ${b.turns} today`;
+  return `${b.day < now.getDate() ? 'Turned' : 'Turns'} ${b.turns} on ${date}`;
 }
 
 // ---------- One member ----------
