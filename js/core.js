@@ -39,6 +39,17 @@ function ageFrom(iso) {
   return beforeBirthday ? age - 1 : age;
 }
 
+// Their birthday this month as { day, turns }, or null if it isn't this month.
+// A Feb 29 birthday counts as Feb 28 in other years.
+function birthdayThisMonth(iso) {
+  if (!iso) return null;
+  const [y, mo, d] = iso.slice(0, 10).split('-').map(Number);
+  const now = new Date();
+  if (mo !== now.getMonth() + 1) return null;
+  const lastDay = new Date(now.getFullYear(), mo, 0).getDate();
+  return { day: Math.min(d, lastDay), turns: now.getFullYear() - y };
+}
+
 // Digits and a leading + only, for tel: links.
 function telHref(phone) {
   return 'tel:' + String(phone).replace(/[^\d+]/g, '');
