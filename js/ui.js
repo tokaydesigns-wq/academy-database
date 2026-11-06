@@ -70,7 +70,7 @@ async function loadAll() {
 
 // Screens where redrawing would throw away what someone is typing or signing.
 const TYPING_SCREENS = ['new', 'edit', 'pay', 'sign', 'paper', 'pause', 'new-class', 'edit-class',
-  'enroll', 'join', 'account', 'kiosk', 'kiosk-form', 'kiosk-family', 'kiosk-done', 'kiosk-exit'];
+  'enroll', 'join', 'account', 'merge', 'kiosk', 'kiosk-form', 'kiosk-family', 'kiosk-done', 'kiosk-exit'];
 
 // Fetch the latest data. Automatic refreshes leave forms alone and keep the scroll position;
 // the ↻ button always redraws.
@@ -459,7 +459,7 @@ function formScreen(id) {
       <button class="btn primary" type="submit">${id ? 'Save changes' : 'Add member'}</button>
     </div>
   </form>
-  ${id ? deleteMemberCard(m) : ''}`;
+  ${id ? mergeCard(m) + deleteMemberCard(m) : ''}`;
 }
 
 // Deleting is for mistakes, duplicates and test sign-ups. It says exactly what goes with them,
