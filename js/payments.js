@@ -307,6 +307,7 @@ function paymentsScreen() {
     <div><span class="muted small">Collected</span><strong>${fmtMoney(collected)}</strong></div>
     <div><span class="muted small">Still owed</span><strong class="${stillOwed ? 'owes' : ''}">${fmtMoney(stillOwed)}</strong></div>
   </div>
+  <a class="btn report-link" href="#/report">📊 Money report for ${esc(fmtMonth(month).split(' ')[0])}</a>
 
   <h3 class="section">Still owe (${owing.length})</h3>
   <ul class="list">${owing.length ? owing.map(row).join('') : '<li class="empty">Everyone has paid for this month.</li>'}</ul>
