@@ -447,7 +447,7 @@ function formScreen(id) {
     <div class="card stack">
       <label>Anything staff should know<textarea name="notes" rows="3">${esc(m.notes)}</textarea></label>
       ${id ? `<label class="check"><input name="active" type="checkbox" ${m.active ? 'checked' : ''}>
-        Active member <span class="muted small">(untick if they’ve left; nothing is deleted)</span></label>` : ''}
+        Active member <span class="muted small">(untick if they’ve left; this keeps their history)</span></label>` : ''}
     </div>
 
     <p id="form-error" class="error" hidden></p>
@@ -455,7 +455,56 @@ function formScreen(id) {
       <a class="btn" href="${back}">Cancel</a>
       <button class="btn primary" type="submit">${id ? 'Save changes' : 'Add member'}</button>
     </div>
-  </form>`;
+  </form>
+  ${id ? deleteMemberCard(m) : ''}`;
+}
+
+// Deleting is for mistakes, duplicates and test sign-ups. It says exactly what goes with them,
+// and the button only works once their full name is typed.
+function deleteMemberCard(m) {
+  const count = (list, word) => {
+    const n = list.filter(r => r.member_id === m.id).length;
+    return `${n} ${word}${n === 1 ? '' : 's'}`;
+  };
+  const family = state.members.filter(x => x.paid_by === m.id && x.plan === 'covered');
+  return `<h3 class="section">Delete member</h3>
+  <div class="card stack danger-card">
+    <p class="small">For mistakes, duplicates and test sign-ups. If they’ve just left the gym, untick
+      <strong>Active member</strong> above instead, which keeps their waiver and payment history.</p>
+    <p class="small"><strong>This permanently deletes ${esc(fullName(m))}</strong>, including
+      ${count(state.waivers, 'signed waiver')}, ${count(state.payments, 'payment')} and
+      ${count(state.enrollments, 'class sign-up')}. It can’t be undone.</p>
+    ${family.length ? `<p class="small">${esc(family.map(fullName).join(', '))} ${family.length === 1 ? 'is' : 'are'} on their
+      family plan, and will be switched to their own plan and marked “To check”.</p>` : ''}
+    <label><span>Type <strong>${esc(fullName(m))}</strong> to confirm</span>
+      <input id="delete-confirm" autocomplete="off" data-name="${esc(fullName(m))}"></label>
+    <button class="btn danger" type="button" data-act="delete-member" data-id="${esc(m.id)}" disabled>Delete member</button>
+  </div>`;
+}
+
+async function onDeleteMember(el) {
+  const m = findMember(el.dataset.id);
+  const typed = $('#delete-confirm').value.trim().toLowerCase();
+  if (!m || typed !== fullName(m).toLowerCase()) return;
+  el.disabled = true;
+  el.textContent = 'Deleting…';
+  try {
+    // Anyone on their family plan moves to their own plan, so nobody is left without a payer.
+    for (const x of state.members.filter(x => x.paid_by === m.id && x.plan === 'covered')) {
+      const note = `Their family plan payer (${fullName(m)}) was deleted on ${fmtDate(todayISO())}; check their plan.`;
+      await DB.saveMember(x.id, { plan: 'auto', paid_by: null,
+        review_note: x.review_note ? `${x.review_note} ${note}` : note });
+    }
+    const photos = state.waivers.filter(w => w.member_id === m.id && w.photo_path).map(w => w.photo_path);
+    await DB.deleteMember(m.id, photos);
+    await loadAll();
+    toast(`${fullName(m)} deleted`);
+    go('#/members');
+  } catch (e) {
+    toast(e.message);
+    el.disabled = false;
+    el.textContent = 'Delete member';
+  }
 }
 
 async function onSaveMember(form) {
@@ -572,6 +621,7 @@ const ACTIONS = {
     go('#/members');
   },
   join: onJoin,
+  'delete-member': onDeleteMember,
   refresh: () => refresh(true),
   retry: render
 };
@@ -589,6 +639,11 @@ document.addEventListener('click', (e) => {
 });
 
 document.addEventListener('input', (e) => {
+  if (e.target.id === 'delete-confirm') {
+    const ok = e.target.value.trim().toLowerCase() === e.target.dataset.name.toLowerCase();
+    document.querySelector('[data-act=delete-member]').disabled = !ok;
+    return;
+  }
   if (e.target.id !== 'search') return;
   state.query = e.target.value;
   renderList();

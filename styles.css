@@ -476,3 +476,7 @@ li.row { padding: 0 4px 0 0; }
 @media (max-width: 480px) { .lang-columns { grid-template-columns: 1fr; } }
 .child-head { display: flex; justify-content: space-between; align-items: center; }
 .child-title { font-size: 17px; }
+
+/* Member edit screen: delete section */
+.danger-card { border-color: var(--error); }
+.btn.danger:disabled { opacity: .4; cursor: not-allowed; }

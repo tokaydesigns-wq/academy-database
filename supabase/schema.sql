@@ -4,7 +4,8 @@
 -- Who can see what:
 --   * Only people whose email is in the "staff" table can read or change members.
 --   * Visitors who aren't signed in (the "anon" role) can't touch anything.
---   * Members are never deleted from the app, only marked inactive.
+--   * Members who leave are marked inactive. Deleting (for mistakes, duplicates and tests) is
+--     also possible, and takes their waivers, payments and class sign-ups with them.
 
 -- Staff list. The owner adds staff emails here in the Table Editor.
 create table if not exists public.staff (
@@ -55,7 +56,7 @@ create policy "staff add members" on public.members
   for insert to authenticated with check (public.is_staff());
 create policy "staff edit members" on public.members
   for update to authenticated using (public.is_staff()) with check (public.is_staff());
--- No delete policy on purpose: members are made inactive instead.
+-- Members who leave are made inactive. Deleting is allowed too (see the end of this file).
 
 revoke all on public.members from anon;
 revoke all on public.staff from anon;
@@ -364,3 +365,14 @@ create policy "staff read reminders" on public.reminders
 create policy "staff add reminders" on public.reminders
   for insert to authenticated with check (public.is_staff());
 revoke all on public.reminders from anon;
+
+-- Deleting a member (added 2026-11-06), for mistakes, duplicates and test sign-ups. Their
+-- waivers, payments, class sign-ups, pauses and reminders are deleted with them (on delete
+-- cascade); anyone on their family plan has paid_by cleared. The app asks staff to type the
+-- member's name first. Paper waiver photos are removed from storage by the app.
+drop policy if exists "staff delete members" on public.members;
+create policy "staff delete members" on public.members
+  for delete to authenticated using (public.is_staff());
+drop policy if exists "staff delete waiver photos" on storage.objects;
+create policy "staff delete waiver photos" on storage.objects
+  for delete to authenticated using (bucket_id = 'waivers' and public.is_staff());
