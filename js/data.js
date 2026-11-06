@@ -174,6 +174,38 @@ const demoDB = {
   async listEnrollments() {
     return this.data.enrollments.map(e => ({ ...e }));
   },
+  // Same rules as merge_members() in schema.sql: fill keep's blanks from dup, move everything
+  // over (class sign-ups and reminders they share are kept once), then remove dup.
+  async mergeMembers(keepId, dupId) {
+    const d = this.data;
+    const k = d.members.find(m => m.id === keepId);
+    const dup = d.members.find(m => m.id === dupId);
+    if (!k || !dup || k === dup) throw new Error('Pick two different members.');
+    for (const key of MEMBER_FIELDS) {
+      if (key === 'active' || key === 'notes') continue;
+      if (!k[key] && dup[key]) k[key] = dup[key];
+    }
+    k.notes = [k.notes, dup.notes].filter(Boolean).join('\n');
+    k.review_note = [k.review_note, dup.review_note].filter(Boolean).join(' ');
+    const active = k.active || dup.active;
+    k.inactive_since = active ? null : (k.inactive_since || dup.inactive_since || null);
+    k.active = active;
+    if (dup.created_at && (!k.created_at || dup.created_at < k.created_at)) k.created_at = dup.created_at;
+    if ((k.plan || 'auto') === 'auto') {
+      Object.assign(k, { plan: dup.plan || 'auto', custom_price: dup.custom_price ?? null,
+        paid_by: dup.paid_by === keepId ? null : dup.paid_by ?? null });
+    }
+    d.members.forEach(m => { if (m.paid_by === dupId && m.id !== keepId) m.paid_by = keepId; });
+    const keepClasses = new Set(d.enrollments.filter(e => e.member_id === keepId).map(e => e.class_id));
+    d.enrollments = d.enrollments.filter(e => e.member_id !== dupId || !keepClasses.has(e.class_id));
+    const keepMonths = new Set(d.reminders.filter(r => r.member_id === keepId).map(r => r.month));
+    d.reminders = d.reminders.filter(r => r.member_id !== dupId || !keepMonths.has(r.month));
+    for (const list of ['enrollments', 'payments', 'waivers', 'pauses', 'reminders']) {
+      d[list].forEach(r => { if (r.member_id === dupId) r.member_id = keepId; });
+    }
+    d.members = d.members.filter(m => m.id !== dupId);
+    demoSave(d);
+  },
   // Deletes the member and everything linked to them, as the database does (on delete cascade).
   async deleteMember(id) {
     const d = this.data;
@@ -345,6 +377,11 @@ function supabaseDB() {
       if (!data.length) throw new Error('This class couldn’t be deleted. Take everyone out of it first.');
     },
     listEnrollments: () => list('enrollments', { keys: ['member_id', 'class_id'] }),
+    // One all-or-nothing step in the database (merge_members in schema.sql).
+    async mergeMembers(keepId, dupId) {
+      const { error } = await sb.rpc('merge_members', { p_keep: keepId, p_dup: dupId });
+      if (error) fail(error);
+    },
     // Deletes the member; their waivers, payments, sign-ups, pauses and reminders go with them.
     // Photos of their paper waivers are removed from storage first.
     async deleteMember(id, photoPaths = []) {

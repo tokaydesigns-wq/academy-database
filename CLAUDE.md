@@ -80,7 +80,8 @@ screens, event handlers), `js/classes.js` (class screens), `js/payments.js` (pri
 tab, record payment) and `js/backup.js` (CSV downloads on the account screen; Supabase's free
 plan has no restorable backups, so these are the gym's safety copy). Routes: `#/members`, `#/m/ID`, `#/new`, `#/edit/ID`, `#/join/ID`,
 `#/account`, `#/classes`, `#/c/ID`, `#/new-class`, `#/edit-class/ID`, `#/enroll/ID`,
-`#/payments`, `#/pay/MEMBER_ID`, `#/followups` (`js/followups.js`: who owes, has no waiver or is
+`#/payments`, `#/pay/MEMBER_ID`, `#/merge/ID` (`js/merge.js`: merging a duplicate, done in one step by
+the `merge_members()` database function), `#/followups` (`js/followups.js`: who owes, has no waiver or is
 "To check", with Call buttons). New screens register in `SCREENS`, forms in `FORMS`, and
 `data-act` clicks in `ACTIONS`.
 

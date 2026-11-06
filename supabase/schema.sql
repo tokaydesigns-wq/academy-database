@@ -376,3 +376,75 @@ create policy "staff delete members" on public.members
 drop policy if exists "staff delete waiver photos" on storage.objects;
 create policy "staff delete waiver photos" on storage.objects
   for delete to authenticated using (bucket_id = 'waivers' and public.is_staff());
+
+-- Merging duplicates (added 2026-11-06): when one person is in the app twice, everything from
+-- the duplicate (p_dup) moves to the member being kept (p_keep), and the duplicate is removed.
+-- It runs as one step: if anything fails, nothing changes. "security definer" lets it move
+-- waivers and payments (which staff can't otherwise edit), so it checks for staff itself.
+create or replace function public.merge_members(p_keep uuid, p_dup uuid) returns void
+language plpgsql security definer set search_path = public as $$
+declare
+  d public.members;
+begin
+  if not public.is_staff() then
+    raise exception 'Only staff can merge members.';
+  end if;
+  if p_keep = p_dup then
+    raise exception 'Pick two different members.';
+  end if;
+  perform 1 from public.members where id = p_keep for update;
+  if not found then raise exception 'The member to keep wasn''t found.'; end if;
+  select * into d from public.members where id = p_dup for update;
+  if not found then raise exception 'The duplicate wasn''t found.'; end if;
+
+  -- Fill the kept member's blank details from the duplicate. Nothing filled in is replaced.
+  update public.members set
+    last_name = coalesce(nullif(last_name, ''), d.last_name),
+    email = coalesce(nullif(email, ''), d.email),
+    phone = coalesce(nullif(phone, ''), d.phone),
+    alt_phone = coalesce(nullif(alt_phone, ''), d.alt_phone),
+    date_of_birth = coalesce(date_of_birth, d.date_of_birth),
+    sex = coalesce(sex, d.sex),
+    address = coalesce(nullif(address, ''), d.address),
+    city = coalesce(nullif(city, ''), d.city),
+    state = coalesce(nullif(state, ''), d.state),
+    zip = coalesce(nullif(zip, ''), d.zip),
+    medical = coalesce(nullif(medical, ''), d.medical),
+    emergency_name = coalesce(nullif(emergency_name, ''), d.emergency_name),
+    emergency_relation = coalesce(nullif(emergency_relation, ''), d.emergency_relation),
+    emergency_phone = coalesce(nullif(emergency_phone, ''), d.emergency_phone),
+    emergency_alt_phone = coalesce(nullif(emergency_alt_phone, ''), d.emergency_alt_phone),
+    guardian_name = coalesce(nullif(guardian_name, ''), d.guardian_name),
+    guardian_relation = coalesce(nullif(guardian_relation, ''), d.guardian_relation),
+    guardian_phone = coalesce(nullif(guardian_phone, ''), d.guardian_phone),
+    guardian_email = coalesce(nullif(guardian_email, ''), d.guardian_email),
+    notes = case when notes <> '' and d.notes <> '' then notes || E'\n' || d.notes
+                 else coalesce(nullif(notes, ''), d.notes) end,
+    review_note = trim(review_note || ' ' || d.review_note),
+    -- Active if either was; billing starts from whichever was added first.
+    active = active or d.active,
+    inactive_since = case when active or d.active then null else coalesce(inactive_since, d.inactive_since) end,
+    created_at = least(created_at, d.created_at),
+    -- Take the duplicate's plan only if the kept member has none chosen.
+    plan = case when plan = 'auto' then d.plan else plan end,
+    custom_price = case when plan = 'auto' then d.custom_price else custom_price end,
+    paid_by = case when plan = 'auto' then nullif(d.paid_by, p_keep) else paid_by end
+  where id = p_keep;
+
+  -- Anyone on the duplicate's family plan is now on the kept member's.
+  update public.members set paid_by = p_keep where paid_by = p_dup and id <> p_keep;
+  -- Move everything else over. Class sign-ups and monthly reminders they both have are kept once.
+  insert into public.enrollments (member_id, class_id, enrolled_on)
+    select p_keep, class_id, enrolled_on from public.enrollments where member_id = p_dup
+    on conflict do nothing;
+  update public.payments set member_id = p_keep where member_id = p_dup;
+  update public.waivers set member_id = p_keep where member_id = p_dup;
+  update public.pauses set member_id = p_keep where member_id = p_dup;
+  update public.reminders set member_id = p_keep where member_id = p_dup
+    and month not in (select month from public.reminders where member_id = p_keep);
+  -- Remove the duplicate (its leftover class sign-ups and reminders go with it).
+  delete from public.members where id = p_dup;
+end;
+$$;
+revoke execute on function public.merge_members(uuid, uuid) from public, anon;
+grant execute on function public.merge_members(uuid, uuid) to authenticated;
