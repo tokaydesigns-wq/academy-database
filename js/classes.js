@@ -80,25 +80,66 @@ function classScreen(id) {
     <div class="actions">
       <a class="btn primary" href="#/enroll/${encodeURIComponent(c.id)}">+ Add members</a>
       <a class="btn" href="#/edit-class/${encodeURIComponent(c.id)}">Edit</a>
+      ${roster.length ? '<button class="btn" data-act="print-roster">🖨 Print roster</button>' : ''}
     </div>
   </section>
 
   <h3 class="section">Who’s in it <span class="tag ${full ? 'full' : ''}">${spotsLabel(c, roster.length)}</span></h3>
-  <ul class="list">${roster.length ? roster.map(m => `
-    <li class="row">
+  ${roster.length ? rosterSummary(roster) : ''}
+  <ul class="list roster">${roster.length ? roster.map(m => rosterRow(m, c)).join('')
+    : '<li class="empty">No one is in this class yet.</li>'}
+  </ul>
+  <p class="print-only small">Printed ${esc(fmtDate(todayISO()))}</p>
+
+  ${c.notes ? `<h3 class="section">Notes</h3><div class="card pre">${esc(c.notes)}</div>` : ''}`;
+}
+
+// What an instructor should know about someone in class: missing waiver, money owed, a paused
+// plan. Each is { text, warn }; warn ones are the ones to sort out before class.
+function rosterFlags(m) {
+  const flags = [];
+  if (!waiverStatus(m).ok) flags.push({ text: 'No waiver', warn: true });
+  const owes = unpaidMonths(m).reduce((sum, b) => sum + b.owes, 0);
+  if (owes) flags.push({ text: `Owes ${fmtMoney(owes)}`, warn: true });
+  if (pauseFor(m, thisMonth())) flags.push({ text: 'Plan paused', warn: false });
+  return flags;
+}
+
+// "2 without a waiver · 1 owes money", or an all-clear.
+function rosterSummary(roster) {
+  const noWaiver = roster.filter(m => !waiverStatus(m).ok).length;
+  const owing = roster.filter(m => unpaidMonths(m).length).length;
+  const bits = [noWaiver ? `${noWaiver} without a waiver` : '', owing ? `${owing} ${owing === 1 ? 'owes' : 'owe'} money` : '']
+    .filter(Boolean);
+  return bits.length ? `<p class="roster-summary warn-text">⚠ ${esc(bits.join(' · '))}</p>`
+    : '<p class="roster-summary paid">✓ Everyone has a waiver and is paid up</p>';
+}
+
+// The number to call in an emergency: their emergency contact, or a parent's for a child.
+function emergencyLine(m) {
+  if (m.emergency_phone) return `Emergency: ${m.emergency_name || 'contact'} ${m.emergency_phone}`;
+  if (m.guardian_phone) return `Parent: ${m.guardian_name || ''} ${m.guardian_phone}`.replace('  ', ' ');
+  return '';
+}
+
+function rosterRow(m, c) {
+  const age = ageFrom(m.date_of_birth);
+  const flags = rosterFlags(m);
+  const sub = [age !== null && age < 18 ? `Age ${age}` : '', emergencyLine(m)].filter(Boolean).join(' · ');
+  return `<li class="row">
       <a class="row-link" href="#/m/${encodeURIComponent(m.id)}">
         <span class="avatar">${esc(initials(m))}</span>
         <span class="grow">
           <strong>${esc(fullName(m))}</strong>
-          <span class="muted small">${esc(m.phone || m.email || '')}</span>
+          ${flags.length ? `<span class="follow-tags">${flags.map(f =>
+            `<span class="tag ${f.warn ? 'full' : ''}">${esc(f.text)}</span>`).join('')}</span>` : ''}
+          ${m.medical ? `<span class="small wrap medical"><strong>Medical:</strong> ${esc(m.medical)}</span>` : ''}
+          ${sub ? `<span class="muted small wrap">${esc(sub)}</span>` : ''}
         </span>
       </a>
       <button class="icon-btn remove" data-act="unenroll" data-member="${esc(m.id)}" data-class="${esc(c.id)}"
         aria-label="Take ${esc(fullName(m))} out of this class">✕</button>
-    </li>`).join('') : '<li class="empty">No one is in this class yet.</li>'}
-  </ul>
-
-  ${c.notes ? `<h3 class="section">Notes</h3><div class="card pre">${esc(c.notes)}</div>` : ''}`;
+    </li>`;
 }
 
 async function onUnenroll(el) {
@@ -319,7 +360,10 @@ Object.assign(SCREENS, {
 });
 
 FORMS['class-form'] = onSaveClass;
-Object.assign(ACTIONS, { enroll: onEnroll, unenroll: onUnenroll, 'delete-class': onDeleteClass });
+Object.assign(ACTIONS, {
+  enroll: onEnroll, unenroll: onUnenroll, 'delete-class': onDeleteClass,
+  'print-roster': () => window.print()
+});
 
 // Ticking a day shows its times. To save typing, a newly ticked day with no times copies
 // them from the nearest ticked day above it (or below, if it's the first).
