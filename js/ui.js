@@ -651,6 +651,11 @@ document.addEventListener('input', (e) => {
 
 window.addEventListener('hashchange', render);
 
+// Lets the tablet and phones install the app (see sw.js, which saves nothing on the device).
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').catch(() => { /* the app works the same without it */ });
+}
+
 // Wait for every script (classes.js too) before drawing the first screen.
 document.addEventListener('DOMContentLoaded', async function start() {
   try {

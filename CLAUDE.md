@@ -95,6 +95,12 @@ plan has no restorable backups, so these are the gym's safety copy). Routes: `#/
   using `public.is_staff()`. `SETUP.md` is the owner's guide for setting up Supabase.
 - Test locally: `python -m http.server 8130`, then open http://localhost:8130.
 
+## Installing on the tablet
+
+`manifest.webmanifest`, `icons/` and `sw.js` let the app be added to a home screen and open
+full-screen. `sw.js` is network-only on purpose: it caches nothing, so updates still arrive
+through the `?v=` numbers and no member data is stored on the device.
+
 ## Releasing
 
 - **Bump `?v=` on every file link in `index.html`** in each pull request that changes CSS or JS
