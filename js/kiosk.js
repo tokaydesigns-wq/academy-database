@@ -43,14 +43,23 @@ function frontDeskCard() {
 
 function kioskScreen() {
   kioskLang = 'en';
+  kioskFamilyNames = '';
   return `<section class="kiosk-welcome">
     <div class="logo">AD</div>
     <h1>${KIOSK_TEXT.en.welcomeTitle}</h1>
     <p>${KIOSK_TEXT.en.welcomeText}</p>
     <p lang="es">${KIOSK_TEXT.es.welcomeText}</p>
-    <div class="actions lang-buttons">
-      <a class="btn primary big" href="#/kiosk-form" data-act="kiosk-lang" data-lang="en">${KIOSK_TEXT.en.startEn}</a>
-      <a class="btn primary big" href="#/kiosk-form" data-act="kiosk-lang" data-lang="es" lang="es">${KIOSK_TEXT.es.startEs}</a>
+    <div class="lang-columns">
+      <div class="stack">
+        <strong>English</strong>
+        <a class="btn primary big" href="#/kiosk-form" data-act="kiosk-lang" data-lang="en">${KIOSK_TEXT.en.justMe}</a>
+        <a class="btn big" href="#/kiosk-family" data-act="kiosk-lang" data-lang="en">${KIOSK_TEXT.en.myFamily}</a>
+      </div>
+      <div class="stack" lang="es">
+        <strong>Español</strong>
+        <a class="btn primary big" href="#/kiosk-form" data-act="kiosk-lang" data-lang="es">${KIOSK_TEXT.es.justMe}</a>
+        <a class="btn big" href="#/kiosk-family" data-act="kiosk-lang" data-lang="es">${KIOSK_TEXT.es.myFamily}</a>
+      </div>
     </div>
   </section>
   <p class="center kiosk-staff"><a class="link-btn" href="#/kiosk-exit">Staff</a></p>`;
@@ -194,6 +203,7 @@ function findExisting(f) {
 }
 
 let kioskFirstName = '';   // for the thank-you screen only
+let kioskFamilyNames = '';  // the kids' first names after a family sign-up
 
 async function onKioskSubmit(form) {
   const f = {};
@@ -296,6 +306,7 @@ function kioskDoneScreen() {
   return `<section class="kiosk-welcome">
     <div class="done-check">✓</div>
     <h1>${t('doneTitle', { name: kioskFirstName ? `, ${esc(kioskFirstName)}` : '' })}</h1>
+    ${kioskFamilyNames ? `<p><strong>${esc(t('doneFamily', { names: kioskFamilyNames }))}</strong></p>` : ''}
     <p>${t('doneText')}</p>
     <a class="btn big" href="#/kiosk">${t('done')}</a>
   </section>`;
@@ -343,7 +354,7 @@ let kioskLastTouch = Date.now();
 
 setInterval(() => {
   const name = route().name;
-  if (kioskOn() && (name === 'kiosk-form' || name === 'kiosk-exit') &&
+  if (kioskOn() && ['kiosk-form', 'kiosk-family', 'kiosk-exit'].includes(name) &&
       Date.now() - kioskLastTouch > KIOSK_IDLE_MS) {
     const message = t('idle');
     go('#/kiosk');   // the welcome screen resets the language to English

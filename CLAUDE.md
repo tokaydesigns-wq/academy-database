@@ -29,6 +29,10 @@ The owner of this project isn't a developer. Write to them in plain language, sh
     blank fields are filled. Sign-ups get a `review_note` ("To check") for staff to confirm.
   - The parent section and parent signature on the tablet only appear once the date of birth
     shows they're under 18 (`syncKioskAge()` → `syncMinor()`); adults never see them.
+  - **Family sign-up** (`js/kiosk-family.js`): one parent adds each child under 18 and signs the
+    waiver once; each child gets their own member record and waiver signed by the parent. The
+    parent is only a member if they tick "I'm training too". Family plan: the payer is the parent
+    if training, otherwise child 1; everyone else is "covered". Existing members keep their plan.
   - The tablet form is in English or Spanish (buttons on the welcome screen). All its wording is
     in `js/kiosk-text.js`. The Spanish waiver there is a **reference translation** shown above the
     official English waiver, which is what's signed; the saved waiver keeps both.
