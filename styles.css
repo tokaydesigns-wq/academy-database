@@ -468,3 +468,11 @@ li.row { padding: 0 4px 0 0; }
   border: 1px solid var(--warn-line);
   font-size: 14px;
 }
+
+/* Front desk tablet: welcome buttons per language, and the family form's child cards */
+.lang-columns { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; width: 100%; max-width: 560px; margin-top: 8px; }
+.lang-columns .stack { gap: 10px; }
+.lang-columns .btn.big { font-size: 18px; padding: 0 16px; }
+@media (max-width: 480px) { .lang-columns { grid-template-columns: 1fr; } }
+.child-head { display: flex; justify-content: space-between; align-items: center; }
+.child-title { font-size: 17px; }
