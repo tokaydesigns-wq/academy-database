@@ -19,6 +19,7 @@ function setKiosk(on) {
   } catch (e) { /* can't remember it; front desk mode lasts until reload */ }
 }
 
+// Program choices; these English labels go in staff notes. The form shows t('programs').
 const KIOSK_PROGRAMS = [
   ['kickboxing', 'Kickboxing'], ['muay_thai', 'Muay Thai'], ['jiu_jitsu', 'Jiu Jitsu'],
   ['all', 'All 3'], ['', 'Not sure yet']
@@ -41,12 +42,16 @@ function frontDeskCard() {
 // ---------- Welcome ----------
 
 function kioskScreen() {
+  kioskLang = 'en';
   return `<section class="kiosk-welcome">
     <div class="logo">AD</div>
-    <h1>Welcome to Academy Martial Arts</h1>
-    <p>New here, or need to update your details? Fill in the form and sign the waiver.
-      It takes about 3 minutes.</p>
-    <a class="btn primary big" href="#/kiosk-form">Start</a>
+    <h1>${KIOSK_TEXT.en.welcomeTitle}</h1>
+    <p>${KIOSK_TEXT.en.welcomeText}</p>
+    <p lang="es">${KIOSK_TEXT.es.welcomeText}</p>
+    <div class="actions lang-buttons">
+      <a class="btn primary big" href="#/kiosk-form" data-act="kiosk-lang" data-lang="en">${KIOSK_TEXT.en.startEn}</a>
+      <a class="btn primary big" href="#/kiosk-form" data-act="kiosk-lang" data-lang="es" lang="es">${KIOSK_TEXT.es.startEs}</a>
+    </div>
   </section>
   <p class="center kiosk-staff"><a class="link-btn" href="#/kiosk-exit">Staff</a></p>`;
 }
@@ -55,105 +60,113 @@ function kioskScreen() {
 
 function kioskFormScreen() {
   const blank = {};
+  const req = text => `<span>${text} <span data-minor="minor">*</span></span>`;
+  // In Spanish, the reference translation comes first, then the official English waiver.
+  const waiverCards = kioskLang === 'es'
+    ? `<div class="card waiver-text" lang="es"><p class="ref-note">${t('refNote')}</p>${waiverTextHtml(waiverTextEs())}</div>
+      <p class="small">${t('officialEnglish')}</p>
+      <div class="card waiver-text" lang="en">${waiverTextHtml(waiverText())}</div>`
+    : `<div class="card waiver-text">${waiverTextHtml(waiverText())}</div>`;
+  const today = new Date().toLocaleDateString(kioskLang === 'es' ? 'es-US' : undefined,
+    { day: 'numeric', month: 'short', year: 'numeric' });
   return `<header class="top">
-    <a class="icon-btn" href="#/kiosk" aria-label="Cancel">‹</a>
-    <h1>Your details</h1>
+    <a class="icon-btn" href="#/kiosk" aria-label="${t('cancel')}">‹</a>
+    <h1>${t('yourDetails')}</h1>
     <span class="icon-btn" aria-hidden="true"></span>
   </header>
-  <form id="kiosk-form" class="stack" novalidate autocomplete="off">
-    <h3 class="section">About you</h3>
+  <form id="kiosk-form" class="stack" novalidate autocomplete="off" lang="${kioskLang}">
+    <h3 class="section">${t('aboutYou')}</h3>
     <div class="card stack">
       <div class="two">
-        ${input('first_name', 'First name *', blank)}
-        ${input('last_name', 'Last name *', blank)}
+        ${input('first_name', t('firstName'), blank)}
+        ${input('last_name', t('lastName'), blank)}
       </div>
       <div class="two">
-        ${input('date_of_birth', 'Date of birth *', blank, 'date', `max="${todayISO()}"`)}
-        <label>Sex<select name="sex">
-          <option value="">–</option><option value="male">Male</option><option value="female">Female</option>
+        ${input('date_of_birth', t('dob'), blank, 'date', `max="${todayISO()}"`)}
+        <label>${t('sex')}<select name="sex">
+          <option value="">–</option><option value="male">${t('male')}</option><option value="female">${t('female')}</option>
         </select></label>
       </div>
     </div>
 
-    <h3 class="section">Contact</h3>
+    <h3 class="section">${t('contact')}</h3>
     <div class="card stack">
       <div class="two">
-        ${input('phone', 'Phone *', blank, 'tel')}
-        ${input('alt_phone', 'Alt phone', blank, 'tel')}
+        ${input('phone', t('phoneReq'), blank, 'tel')}
+        ${input('alt_phone', t('altPhone'), blank, 'tel')}
       </div>
-      ${input('email', 'Email', blank, 'email')}
-      ${input('address', 'Street address', blank)}
+      ${input('email', t('email'), blank, 'email')}
+      ${input('address', t('street'), blank)}
       <div class="city-row">
-        ${input('city', 'City', blank)}
-        ${input('state', 'State', blank, 'text', 'maxlength="20"')}
-        ${input('zip', 'Zip', blank, 'text', 'inputmode="numeric" maxlength="10"')}
+        ${input('city', t('city'), blank)}
+        ${input('state', t('state'), blank, 'text', 'maxlength="20"')}
+        ${input('zip', t('zip'), blank, 'text', 'inputmode="numeric" maxlength="10"')}
       </div>
     </div>
 
-    <h3 class="section">Medical conditions</h3>
+    <h3 class="section">${t('medical')}</h3>
     <div class="card stack">
-      <label><span>Anything your coach should know <span class="muted small">(or “none”)</span></span>
+      <label><span>${t('medicalLabel')} <span class="muted small">${t('medicalHint')}</span></span>
         <textarea name="medical" rows="2"></textarea></label>
     </div>
 
-    <h3 class="section">Emergency contact</h3>
+    <h3 class="section">${t('emergency')}</h3>
     <div class="card stack">
       <div class="two">
-        ${input('emergency_name', 'Name *', blank)}
-        ${input('emergency_relation', 'Relation', blank, 'text', 'placeholder="e.g. Mom"')}
+        ${input('emergency_name', t('nameReq'), blank)}
+        ${input('emergency_relation', t('relation'), blank, 'text', `placeholder="${t('relationPh')}"`)}
       </div>
       <div class="two">
-        ${input('emergency_phone', 'Phone *', blank, 'tel')}
-        ${input('emergency_alt_phone', 'Alt phone', blank, 'tel')}
+        ${input('emergency_phone', t('phoneReq'), blank, 'tel')}
+        ${input('emergency_alt_phone', t('altPhone'), blank, 'tel')}
       </div>
     </div>
 
-    <h3 class="section">Parent or guardian <span class="muted">(if under 18)</span></h3>
+    <h3 class="section">${t('parentSection')} <span class="muted">${t('ifUnder18')}</span></h3>
     <div class="card stack guardian-card" id="guardian-card">
-      <p class="small" id="minor-status">If you’re under 18, a parent or guardian needs to fill this in and sign
-        the waiver below.</p>
+      <p class="small" id="minor-status">${t('minorNote')}</p>
       <div class="two">
-        ${input('guardian_name', '<span>Parent/guardian name <span data-minor="minor">*</span></span>', blank)}
-        ${input('guardian_relation', 'Relationship', blank, 'text', 'placeholder="e.g. Mom, Dad"')}
+        ${input('guardian_name', req(t('parentName')), blank)}
+        ${input('guardian_relation', t('relationship'), blank, 'text', `placeholder="${t('relationshipPh')}"`)}
       </div>
       <div class="two">
-        ${input('guardian_phone', '<span>Phone <span data-minor="minor">*</span></span>', blank, 'tel')}
-        ${input('guardian_email', 'Email', blank, 'email')}
+        ${input('guardian_phone', req(t('phone')), blank, 'tel')}
+        ${input('guardian_email', t('email'), blank, 'email')}
       </div>
     </div>
 
-    <h3 class="section">What would you like to train?</h3>
+    <h3 class="section">${t('train')}</h3>
     <div class="card stack">
       <fieldset class="methods programs">
-        <legend class="muted small">Kickboxing is included with Muay Thai and Jiu Jitsu. The front desk will confirm the price.</legend>
-        ${KIOSK_PROGRAMS.map(([key, label]) => `
-          <label class="method"><input type="radio" name="program" value="${key}"><span>${label}</span></label>`).join('')}
+        <legend class="muted small">${t('trainNote')}</legend>
+        ${KIOSK_PROGRAMS.map(([key]) => `
+          <label class="method"><input type="radio" name="program" value="${key}"><span>${t('programs')[key]}</span></label>`).join('')}
       </fieldset>
     </div>
 
-    <h3 class="section">Waiver</h3>
-    <div class="card waiver-text">${waiverTextHtml(waiverText())}</div>
+    <h3 class="section">${t('waiver')}</h3>
+    ${waiverCards}
     <div class="card stack">
       <input type="checkbox" id="minor-check" name="minor" hidden>
       <div>
-        <div class="pad-label"><strong>Your signature <span data-minor="adult">*</span><span data-minor="minor" class="muted small">(optional)</span></strong>
-          <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-participant">Clear</button></div>
-        <canvas class="sig-pad" id="pad-participant" aria-label="Your signature: sign with your finger"></canvas>
+        <div class="pad-label"><strong>${t('yourSig')} <span data-minor="adult">*</span><span data-minor="minor" class="muted small">${t('optional')}</span></strong>
+          <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-participant">${t('clear')}</button></div>
+        <canvas class="sig-pad" id="pad-participant" aria-label="${t('sigAria')}"></canvas>
       </div>
       <div>
-        <div class="pad-label"><strong>Parent/guardian signature <span data-minor="minor">*</span><span data-minor="adult"
-          class="muted small">(if under 18)</span></strong>
-          <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-guardian">Clear</button></div>
-        <canvas class="sig-pad" id="pad-guardian" aria-label="Parent or guardian signature: sign with your finger"></canvas>
+        <div class="pad-label"><strong>${t('parentSig')} <span data-minor="minor">*</span><span data-minor="adult"
+          class="muted small">${t('ifUnder18')}</span></strong>
+          <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-guardian">${t('clear')}</button></div>
+        <canvas class="sig-pad" id="pad-guardian" aria-label="${t('parentSigAria')}"></canvas>
       </div>
-      <p class="small">Date: <strong>${esc(fmtDate(todayISO()))}</strong></p>
-      <label class="check"><input type="checkbox" name="agree"> I have read this waiver and agree to it.</label>
+      <p class="small">${t('date')}: <strong>${esc(today)}</strong></p>
+      <label class="check"><input type="checkbox" name="agree"> ${t('agree')}</label>
     </div>
 
     <p id="form-error" class="error" hidden></p>
     <div class="actions end">
-      <a class="btn" href="#/kiosk">Cancel</a>
-      <button class="btn primary big" type="submit">Finish</button>
+      <a class="btn" href="#/kiosk">${t('cancel')}</a>
+      <button class="btn primary big" type="submit">${t('finish')}</button>
     </div>
   </form>`;
 }
@@ -166,9 +179,7 @@ function syncKioskAge() {
   const age = ageFrom(dob);
   box.checked = age !== null && age < 18;
   const status = $('#minor-status');
-  status.innerHTML = box.checked
-    ? `<strong>You’re under 18</strong>, so a parent or guardian needs to fill this in and sign the waiver below.`
-    : `If you’re under 18, a parent or guardian needs to fill this in and sign the waiver below.`;
+  status.innerHTML = box.checked ? t('minorNoteYes') : t('minorNote');
   $('#guardian-card').classList.toggle('required', box.checked);
   syncMinor();
 }
@@ -202,19 +213,19 @@ async function onKioskSubmit(form) {
   const guardianSignature = minor ? padImage($('#pad-guardian')) : null;
 
   const problem =
-    !f.first_name || !f.last_name ? 'Please add your first and last name.' :
-    !f.date_of_birth ? 'Please add your date of birth.' :
-    new Date(f.date_of_birth) > new Date() ? 'Your date of birth is in the future.' :
-    digitsOf(f.phone).length < 7 ? 'Please add a phone number.' :
-    f.email && !looksLikeEmail(f.email) ? 'That email doesn’t look right.' :
-    !f.emergency_name || digitsOf(f.emergency_phone).length < 7 ? 'Please add an emergency contact name and phone.' :
-    program === undefined ? 'Please choose what you’d like to train (or “Not sure yet”).' :
-    !minor && !signature ? 'Please sign the waiver in the box.' :
-    minor && !guardianName ? 'You’re under 18: please add your parent or guardian’s name.' :
-    minor && digitsOf(f.guardian_phone).length < 7 ? 'Please add your parent or guardian’s phone number.' :
-    minor && f.guardian_email && !looksLikeEmail(f.guardian_email) ? 'The parent or guardian’s email doesn’t look right.' :
-    minor && !guardianSignature ? 'A parent or guardian needs to sign the waiver in the box.' :
-    !form.agree.checked ? 'Please tick the box to agree to the waiver.' : '';
+    !f.first_name || !f.last_name ? t('eName') :
+    !f.date_of_birth ? t('eDob') :
+    new Date(f.date_of_birth) > new Date() ? t('eDobFuture') :
+    digitsOf(f.phone).length < 7 ? t('ePhone') :
+    f.email && !looksLikeEmail(f.email) ? t('eEmail') :
+    !f.emergency_name || digitsOf(f.emergency_phone).length < 7 ? t('eEmergency') :
+    program === undefined ? t('eProgram') :
+    !minor && !signature ? t('eSign') :
+    minor && !guardianName ? t('eParentName') :
+    minor && digitsOf(f.guardian_phone).length < 7 ? t('eParentPhone') :
+    minor && f.guardian_email && !looksLikeEmail(f.guardian_email) ? t('eParentEmail') :
+    minor && !guardianSignature ? t('eParentSign') :
+    !form.agree.checked ? t('eAgree') : '';
   const errorEl = $('#form-error');
   if (problem) {
     errorEl.textContent = problem;
@@ -225,8 +236,9 @@ async function onKioskSubmit(form) {
 
   const button = form.querySelector('button[type=submit]');
   button.disabled = true;
-  button.textContent = 'Saving…';
-  const wants = KIOSK_PROGRAMS.find(([key]) => key === program)[1];
+  button.textContent = t('saving');
+  // Staff notes stay in English, and say when the Spanish form was used.
+  const wants = KIOSK_PROGRAMS.find(([key]) => key === program)[1] + (kioskLang === 'es' ? ' (filled in in Spanish)' : '');
   let member;
   try {
     // Fetch the latest members first, so someone staff added recently is matched, not duplicated.
@@ -249,23 +261,23 @@ async function onKioskSubmit(form) {
       });
     }
   } catch (e) {
-    errorEl.textContent = `Sorry, that didn’t save (${e.message}). Please ask the front desk for help.`;
+    errorEl.textContent = t('eSave', { msg: e.message });
     errorEl.hidden = false;
     button.disabled = false;
-    button.textContent = 'Finish';
+    button.textContent = t('finish');
     return;
   }
 
   try {
     await DB.addWaiver({
-      member_id: member.id, kind: 'signed', version: WAIVER.version, waiver_text: waiverText(),
+      member_id: member.id, kind: 'signed', version: WAIVER.version, waiver_text: signedWaiverText(),
       signed_name: `${f.first_name} ${f.last_name}`, signature,
       guardian_name: guardianName, guardian_signature: guardianSignature, signed_on: todayISO()
     });
   } catch (e) {
-    errorEl.textContent = 'Your details were saved, but the waiver wasn’t. Please ask the front desk to help you sign it.';
+    errorEl.textContent = t('eWaiver');
     errorEl.hidden = false;
-    button.textContent = 'Finish';
+    button.textContent = t('finish');
     return;
   }
 
@@ -284,9 +296,9 @@ function kioskDoneScreen() {
   doneTimer = setTimeout(() => { if (route().name === 'kiosk-done') go('#/kiosk'); }, 10000);
   return `<section class="kiosk-welcome">
     <div class="done-check">✓</div>
-    <h1>All done${kioskFirstName ? `, ${esc(kioskFirstName)}` : ''}!</h1>
-    <p>Thanks. Your details and waiver are saved. Please hand the tablet back to the front desk.</p>
-    <a class="btn big" href="#/kiosk">Done</a>
+    <h1>${t('doneTitle', { name: kioskFirstName ? `, ${esc(kioskFirstName)}` : '' })}</h1>
+    <p>${t('doneText')}</p>
+    <a class="btn big" href="#/kiosk">${t('done')}</a>
   </section>`;
 }
 
@@ -334,8 +346,9 @@ setInterval(() => {
   const name = route().name;
   if (kioskOn() && (name === 'kiosk-form' || name === 'kiosk-exit') &&
       Date.now() - kioskLastTouch > KIOSK_IDLE_MS) {
-    go('#/kiosk');
-    toast('The form was cleared because no one was using it.');
+    const message = t('idle');
+    go('#/kiosk');   // the welcome screen resets the language to English
+    toast(message);
   }
 }, 15000);
 
@@ -354,6 +367,10 @@ Object.assign(ACTIONS, {
   'kiosk-start'() {
     setKiosk(true);
     go('#/kiosk');
+  },
+  // The welcome screen's English / Español buttons (the link itself opens the form).
+  'kiosk-lang'(el) {
+    kioskLang = el.dataset.lang === 'es' ? 'es' : 'en';
   },
   async 'review-done'(el) {
     el.disabled = true;

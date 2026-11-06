@@ -457,3 +457,14 @@ li.row { padding: 0 4px 0 0; }
 
 /* Tablet form: the parent section stands out once the birthday shows they're under 18 */
 .guardian-card.required { background: var(--accent-soft); border-color: var(--accent); }
+
+/* Front desk tablet: language buttons and the Spanish reference translation note */
+.lang-buttons { gap: 12px; margin-top: 8px; }
+.ref-note {
+  margin: 0 0 12px !important;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--warn-bg);
+  border: 1px solid var(--warn-line);
+  font-size: 14px;
+}

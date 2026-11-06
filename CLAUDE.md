@@ -27,6 +27,9 @@ The owner of this project isn't a developer. Write to them in plain language, sh
     the front desk screens can be shown, leaving needs the staff password, and members never see
     anyone else's data. Existing members are matched by name + birthday (or phone) and only
     blank fields are filled. Sign-ups get a `review_note` ("To check") for staff to confirm.
+  - The tablet form is in English or Spanish (buttons on the welcome screen). All its wording is
+    in `js/kiosk-text.js`. The Spanish waiver there is a **reference translation** shown above the
+    official English waiver, which is what's signed; the saved waiver keeps both.
   - Under 18: a parent or guardian signs, and their name is recorded with the signature.
   - A waiver lasts as long as the person is a member. Only ask for a new one if the wording changes.
 - No build step and no frameworks unless there's a clear reason. Plain HTML, CSS and JavaScript.
