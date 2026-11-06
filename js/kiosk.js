@@ -87,6 +87,7 @@ function kioskFormScreen() {
           <option value="">–</option><option value="male">${t('male')}</option><option value="female">${t('female')}</option>
         </select></label>
       </div>
+      <p class="muted small">${t('dobHint')}</p>
     </div>
 
     <h3 class="section">${t('contact')}</h3>
@@ -122,9 +123,10 @@ function kioskFormScreen() {
       </div>
     </div>
 
-    <h3 class="section">${t('parentSection')} <span class="muted">${t('ifUnder18')}</span></h3>
-    <div class="card stack guardian-card" id="guardian-card">
-      <p class="small" id="minor-status">${t('minorNote')}</p>
+    <div class="stack minor-only" data-minor="minor">
+    <h3 class="section">${t('parentSection')}</h3>
+    <div class="card stack guardian-card required" id="guardian-card">
+      <p class="small" id="minor-status">${t('minorNoteYes')}</p>
       <div class="two">
         ${input('guardian_name', req(t('parentName')), blank)}
         ${input('guardian_relation', t('relationship'), blank, 'text', `placeholder="${t('relationshipPh')}"`)}
@@ -133,6 +135,7 @@ function kioskFormScreen() {
         ${input('guardian_phone', req(t('phone')), blank, 'tel')}
         ${input('guardian_email', t('email'), blank, 'email')}
       </div>
+    </div>
     </div>
 
     <h3 class="section">${t('train')}</h3>
@@ -153,9 +156,8 @@ function kioskFormScreen() {
           <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-participant">${t('clear')}</button></div>
         <canvas class="sig-pad" id="pad-participant" aria-label="${t('sigAria')}"></canvas>
       </div>
-      <div>
-        <div class="pad-label"><strong>${t('parentSig')} <span data-minor="minor">*</span><span data-minor="adult"
-          class="muted small">${t('ifUnder18')}</span></strong>
+      <div data-minor="minor">
+        <div class="pad-label"><strong>${t('parentSig')} *</strong>
           <button type="button" class="link-btn" data-act="pad-clear" data-pad="pad-guardian">${t('clear')}</button></div>
         <canvas class="sig-pad" id="pad-guardian" aria-label="${t('parentSigAria')}"></canvas>
       </div>
@@ -178,10 +180,7 @@ function syncKioskAge() {
   if (!box) return;
   const age = ageFrom(dob);
   box.checked = age !== null && age < 18;
-  const status = $('#minor-status');
-  status.innerHTML = box.checked ? t('minorNoteYes') : t('minorNote');
-  $('#guardian-card').classList.toggle('required', box.checked);
-  syncMinor();
+  syncMinor();   // shows the parent section and signature for under-18s, hides them otherwise
 }
 
 const digitsOf = s => String(s || '').replace(/\D/g, '');
@@ -386,6 +385,6 @@ Object.assign(ACTIONS, {
   }
 });
 
-document.addEventListener('change', (e) => {
+['change', 'input'].forEach(type => document.addEventListener(type, (e) => {
   if (e.target.name === 'date_of_birth' && e.target.closest('#kiosk-form')) syncKioskAge();
-});
+}));
