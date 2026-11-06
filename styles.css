@@ -414,7 +414,14 @@ li.row { padding: 0 4px 0 0; }
   .top, .tabs, .demo, .fab, #toast, .btn, .muted.small.center { display: none !important; }
   .card { border: 0; box-shadow: none; padding: 0; background: #fff; }
   .waiver-text { max-height: none; overflow: visible; font-size: 12pt; }
+  /* Class roster on paper: plain rows, no avatars or remove buttons, tags kept readable. */
+  .roster .avatar, .roster .remove { display: none !important; }
+  .roster .row { border: 0; border-bottom: 1px solid #999; border-radius: 0; box-shadow: none; padding: 6px 0; break-inside: avoid; }
+  .roster .tag { border: 1px solid #000; background: #fff; color: #000; }
+  .roster .muted, .roster .medical { color: #000; }
+  .print-only { display: block !important; }
 }
+.print-only { display: none; }
 
 /* Delete buttons */
 .btn.danger { color: var(--error); border-color: var(--error); background: var(--card); align-self: flex-start; }
@@ -517,3 +524,8 @@ li.row { padding: 0 4px 0 0; }
 .trend-value { font-size: 11px; color: var(--muted); margin-bottom: 3px; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .trend-month { font-size: 12px; color: var(--muted); margin-top: 4px; border-top: 1px solid var(--line); width: 100%; text-align: center; padding-top: 3px; }
 .trend-col.on .trend-month, .trend-col.on .trend-value { color: var(--text); font-weight: 600; }
+
+/* Class roster (js/classes.js) */
+.roster-summary { margin: 0 0 8px; font-weight: 600; font-size: 14px; }
+.warn-text { color: var(--text); background: var(--warn-bg); border: 1px solid var(--warn-line); border-radius: 10px; padding: 8px 10px; }
+.medical { color: var(--text); }
