@@ -174,6 +174,16 @@ const demoDB = {
   async listEnrollments() {
     return this.data.enrollments.map(e => ({ ...e }));
   },
+  // Deletes the member and everything linked to them, as the database does (on delete cascade).
+  async deleteMember(id) {
+    const d = this.data;
+    d.members = d.members.filter(m => m.id !== id);
+    for (const list of ['enrollments', 'payments', 'waivers', 'pauses', 'reminders']) {
+      d[list] = d[list].filter(r => r.member_id !== id);
+    }
+    d.members.forEach(m => { if (m.paid_by === id) m.paid_by = null; });
+    demoSave(d);
+  },
   async enroll(member_id, class_id) {
     const row = { member_id, class_id, enrolled_on: new Date().toISOString().slice(0, 10) };
     this.data.enrollments.push(row);
@@ -335,6 +345,17 @@ function supabaseDB() {
       if (!data.length) throw new Error('This class couldn’t be deleted. Take everyone out of it first.');
     },
     listEnrollments: () => list('enrollments', { keys: ['member_id', 'class_id'] }),
+    // Deletes the member; their waivers, payments, sign-ups, pauses and reminders go with them.
+    // Photos of their paper waivers are removed from storage first.
+    async deleteMember(id, photoPaths = []) {
+      if (photoPaths.length) {
+        const { error } = await sb.storage.from('waivers').remove(photoPaths);
+        if (error) fail(error);
+      }
+      const { data, error } = await sb.from('members').delete().eq('id', id).select('id');
+      if (error) fail(error);
+      if (!data.length) throw new Error('This member couldn’t be deleted. The database may need updating.');
+    },
     async enroll(member_id, class_id) {
       const { data, error } = await sb.from('enrollments').insert({ member_id, class_id }).select().single();
       if (error) fail(error);
