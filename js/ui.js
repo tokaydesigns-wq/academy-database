@@ -108,7 +108,10 @@ const SCREENS = {
 function navBar(current) {
   const tab = (name, label) =>
     `<a class="tab ${current === name ? 'on' : ''}" href="#/${name}">${label}</a>`;
-  return `<nav class="tabs">${tab('members', 'Members')}${tab('classes', 'Classes')}${tab('payments', 'Payments')}</nav>`;
+  // Follow-ups shows how many people are waiting (followups.js).
+  const waiting = followUpCount();
+  const follow = `Follow-ups${waiting ? ` <span class="tab-badge">${waiting}</span>` : ''}`;
+  return `<nav class="tabs">${tab('members', 'Members')}${tab('classes', 'Classes')}${tab('payments', 'Payments')}${tab('followups', follow)}</nav>`;
 }
 
 function demoBanner() {

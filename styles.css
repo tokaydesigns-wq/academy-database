@@ -480,3 +480,16 @@ li.row { padding: 0 4px 0 0; }
 /* Member edit screen: delete section */
 .danger-card { border-color: var(--error); }
 .btn.danger:disabled { opacity: .4; cursor: not-allowed; }
+
+/* Bottom tabs: four of them, with a count on Follow-ups */
+.tab { font-size: 15px; padding: 14px 2px; white-space: nowrap; }
+.tab-badge {
+  display: inline-block; min-width: 20px; padding: 0 6px; margin-left: 2px;
+  border-radius: 999px; background: var(--accent); color: var(--accent-text);
+  font-size: 12px; line-height: 20px; text-align: center; vertical-align: 1px;
+}
+
+/* Follow-ups list */
+.follow-list { margin-top: 12px; }
+.follow-tags { display: flex; flex-wrap: wrap; gap: 4px; margin: 3px 0; }
+.call-btn { flex: none; margin-right: 8px; min-height: 40px; }
