@@ -148,6 +148,7 @@ function memberPaymentsCard(m) {
       ${field('Billing since', esc(fmtMonth(joinedMonth(m))))}
       ${m.active ? '' : field('Left', `Not billed from ${esc(fmtMonth(leftMonth(m)))}`)}
     </dl>
+    ${m.plan === 'family' ? familyPlanList(m) : ''}
     ${recent.length ? `<ul class="plain pay-list">${recent.map(p => `
       <li class="pay-row">
         <span class="grow">
@@ -162,6 +163,115 @@ function memberPaymentsCard(m) {
       ${currentPause(m) ? '' : `<a class="btn small-btn" href="#/pause/${encodeURIComponent(m.id)}">⏸ Pause plan</a>`}
     </div>
   </div>`;
+}
+
+// ---------- Adding people to someone's family plan ----------
+
+// On the payer's page: who their family plan covers, each with a button to take them off it.
+function familyPlanList(payer) {
+  const family = familyOf(payer.id).sort((a, b) => fullName(a).localeCompare(fullName(b)));
+  return `<div class="family-plan">
+    <p class="small muted">${family.length ? 'Also on this family plan:' : 'No one else is on this family plan yet.'}</p>
+    ${family.length ? `<ul class="plain">${family.map(x => `
+      <li class="pay-row">
+        <a class="grow" href="#/m/${encodeURIComponent(x.id)}">${esc(fullName(x))}</a>
+        <button class="icon-btn remove" data-act="family-off" data-id="${esc(x.id)}"
+          aria-label="Take ${esc(fullName(x))} off this family plan">✕</button>
+      </li>`).join('')}</ul>` : ''}
+    <a class="btn small-btn" href="#/family/${encodeURIComponent(payer.id)}">+ Add to family plan</a>
+  </div>`;
+}
+
+let familyQuery = '';
+
+function familyAddScreen(id) {
+  const payer = findMember(id);
+  if (!payer || payer.plan !== 'family') {
+    return `${topBar('Add to family plan', '#/members')}<p class="empty">This person doesn’t pay a family plan.</p>`;
+  }
+  familyQuery = '';
+  return `${topBar('Add to family plan', `#/m/${encodeURIComponent(id)}`)}
+  <p class="muted center">Tap a member to put them on <strong>${esc(fullName(payer))}</strong>’s family plan.
+    They won’t be charged on their own any more.</p>
+  <div class="tools">
+    <input id="family-search" type="search" placeholder="Search name" autocomplete="off" aria-label="Search members">
+  </div>
+  <ul id="family-list" class="list"></ul>
+  <p class="center"><a class="btn" href="#/m/${encodeURIComponent(id)}">Done</a></p>`;
+}
+
+// What each member is on now, so staff can see what changes when they're added.
+function familyPickNote(m) {
+  if (m.plan === 'covered') {
+    const other = findMember(m.paid_by);
+    return `On ${other ? fullName(other) : 'another'}’s family plan`;
+  }
+  return planFor(m).label;
+}
+
+// Redraws the list only, so the search box keeps focus. The payer's own family is listed on
+// their page, so it's left out here, as is anyone paying a family plan of their own.
+function renderFamilyList(id) {
+  const list = $('#family-list');
+  if (!list) return;
+  const q = familyQuery.trim().toLowerCase();
+  const left = state.members
+    .filter(m => m.active && m.id !== id && m.plan !== 'family' && !(m.plan === 'covered' && m.paid_by === id) &&
+      fullName(m).toLowerCase().includes(q))
+    .sort((a, b) => fullName(a).localeCompare(fullName(b)));
+  list.innerHTML = left.length ? left.map(m => `
+    <li><button class="row" data-act="family-on" data-member="${esc(m.id)}" data-payer="${esc(id)}">
+      <span class="avatar">${esc(initials(m))}</span>
+      <span class="grow"><strong>${esc(fullName(m))}</strong>
+        <span class="muted small">${esc(familyPickNote(m))}</span></span>
+      <span class="add">+ Add</span>
+    </button></li>`).join('')
+    : `<li class="empty">${q ? 'No one matches that search.' : 'There’s no one else to add.'}</li>`;
+}
+
+async function saveMemberHere(id, fields) {
+  const saved = await DB.saveMember(id, fields);
+  state.members = state.members.map(m => (m.id === saved.id ? saved : m));
+  return saved;
+}
+
+async function onFamilyOn(el) {
+  const m = findMember(el.dataset.member);
+  const payer = findMember(el.dataset.payer);
+  // Moving someone off another family's plan is unusual enough to check first.
+  if (m.plan === 'covered') {
+    const other = findMember(m.paid_by);
+    if (other && !confirm(`${fullName(m)} is on ${fullName(other)}’s family plan. Move them to ${fullName(payer)}’s?`)) return;
+  }
+  el.disabled = true;
+  try {
+    await saveMemberHere(m.id, { plan: 'covered', paid_by: payer.id, custom_price: null });
+    toast(`${fullName(m)} added to the family plan`);
+    renderFamilyList(payer.id);
+  } catch (e) {
+    toast(e.message);
+    el.disabled = false;
+  }
+}
+
+// Taking someone off puts them back on "work it out from their classes" and flags them in
+// "To check", so staff choose their own plan.
+async function onFamilyOff(el) {
+  const m = findMember(el.dataset.id);
+  const payer = findMember(m.paid_by);
+  if (!confirm(`Take ${fullName(m)} off ${payer ? fullName(payer) + '’s' : 'this'} family plan? ` +
+      'Their price will be worked out from their classes until you choose a plan for them.')) return;
+  el.disabled = true;
+  const note = `Taken off ${payer ? fullName(payer) + '’s' : 'a'} family plan on ${fmtDate(todayISO())}; choose their plan.`;
+  try {
+    await saveMemberHere(m.id, { plan: 'auto', paid_by: null,
+      review_note: m.review_note ? `${m.review_note} ${note}` : note });
+    toast(`${fullName(m)} taken off the family plan`);
+    render();
+  } catch (e) {
+    toast(e.message);
+    el.disabled = false;
+  }
 }
 
 // The reminder email for this month (sent on the 15th by the Gmail script in reminders/).
@@ -497,6 +607,7 @@ Object.assign(SCREENS, {
   payments: { html: paymentsScreen, tab: 'payments' },
   pay: { html: payScreen },
   pause: { html: pauseScreen },
+  family: { html: familyAddScreen, after: renderFamilyList },
   // The member form needs its plan fields shown or hidden once it's drawn.
   new: { ...SCREENS.new, after: syncPlanFields },
   edit: { ...SCREENS.edit, after: syncPlanFields }
@@ -506,6 +617,8 @@ Object.assign(FORMS, { 'pay-form': onSavePayment, 'pause-form': onSavePause });
 
 Object.assign(ACTIONS, {
   'delete-payment': onDeletePayment,
+  'family-on': onFamilyOn,
+  'family-off': onFamilyOff,
   'pay-month'(el) {
     state.payMonth = shiftMonth(state.payMonth, Number(el.dataset.step));
     render();
@@ -523,4 +636,10 @@ Object.assign(ACTIONS, {
 
 document.addEventListener('change', (e) => {
   if (e.target.id === 'plan-select') syncPlanFields();
+});
+
+document.addEventListener('input', (e) => {
+  if (e.target.id !== 'family-search') return;
+  familyQuery = e.target.value;
+  renderFamilyList(route().id);
 });
