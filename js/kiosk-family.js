@@ -230,7 +230,7 @@ async function onFamilySubmit(form) {
   const programLabelOf = key => KIOSK_PROGRAMS.find(([k]) => k === key)[1];
   const today = fmtDate(todayISO());
   const spanish = kioskLang === 'es' ? ' Filled in in Spanish.' : '';
-  const planNote = plan === 'family' ? 'Family plan requested.' : 'Separate plans requested.';
+  const planNote = plan === 'family' ? 'Family plan requested.' : 'Individual plans requested.';
   const kidNames = children.map(c => c.first_name).join(', ');
 
   // The people to save, the person who pays first (the parent if training, otherwise child 1),
