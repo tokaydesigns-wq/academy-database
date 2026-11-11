@@ -52,7 +52,8 @@ doesn't cover, the member page shows a warning.
 - Muay Thai or Jiu Jitsu: $59.99/month, and Kickboxing is included free.
 - +$10 for each extra course, e.g. Muay Thai + Jiu Jitsu = $69.99 (Kickboxing still included).
 - Family plan: $150/month and covers the whole household. One member pays, and the others are
-  "covered" by them.
+  "covered" by them. The payer's page lists who's covered, with "+ Add to family plan"
+  (`#/family/ID`) to add existing members and ✕ to take someone off (back to `auto`, "To check").
 - Nothing is due for months before a member was added to the app (`joinedMonth()`, from
   `created_at`) or while their plan is paused (`pauses` table, `pauseFor()`). Pauses are kept
   after they end so past paused months never count as owed. Past months use the current plan.
