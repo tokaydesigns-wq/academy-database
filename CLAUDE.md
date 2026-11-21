@@ -8,8 +8,11 @@ The owner of this project isn't a developer. Write to them in plain language, sh
 
 ## Decisions so far (2026-11-02)
 
-- **Free only.** Free hosting (GitHub Pages or similar) and the Supabase free tier for the shared
-  database and staff logins.
+- **Free only.** Free hosting and the Supabase free tier for the shared database and staff logins.
+- **Hosting:** Cloudflare Pages at https://academy-database.pages.dev, deployed from `main` within a
+  minute of merging (no build step; the build command is `exit 0`). It moved off GitHub Pages on
+  2026-11-21 because the owner now runs it for the gym as a paid service, which GitHub Pages' rules
+  don't allow.
 - **No member data in the code.** Members, waivers and payments live in Supabase behind a staff
   login, with row-level security on every table. The Supabase "anon" key is fine to put in the code
   only because of that. Never put the service-role key or any other secret in a file.
@@ -107,7 +110,7 @@ through the `?v=` numbers and no member data is stored on the device.
 ## Releasing
 
 - **Bump `?v=` on every file link in `index.html`** in each pull request that changes CSS or JS
-  (all to the same new number). GitHub Pages lets phones keep files for 10 minutes, and without
+  (all to the same new number). Phones can keep old files for a while, and without
   this a phone can mix old and new files and break.
 - If `supabase/schema.sql` changed, the new block must be run in Supabase **before** merging.
 
